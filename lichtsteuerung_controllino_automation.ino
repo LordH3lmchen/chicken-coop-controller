@@ -6,28 +6,26 @@
 
 struct LightControllerConfiguration
 {
-  uint32_t SunsetTimeHour;
-  uint32_t SunsetTimeMinute;
-  uint32_t SunsetDurationMinutes;
-  uint32_t SunriseDurationMinutes;
-  uint32_t LightDurationHours;
-  uint32_t LightDurationMinutes;
+  uint32_t SunsetTime;
+  uint32_t SunsetDuration;
+  uint32_t SunriseDuration;
+  uint32_t LightDuration;
   int MaxBrightness0;
   int MaxBrightness1;
   int MaxBrightness2;
 
   void Reset() {
-    SunsetTimeHour = 21;
-    SunsetTimeMinute = 15;
-    SunsetDurationMinutes = 45;
-    SunriseDurationMinutes = 30;
-    LightDurationHours = 14;
-    LightDurationMinutes = 32;
+    SunsetTime = 21*60*60+15*60;
+    SunsetDuration = 45*60;
+    SunriseDuration = 30*60;
+    LightDuration = 14*60*60+32*60;
     MaxBrightness0 = 178;
     MaxBrightness1 = 178;
     MaxBrightness2 = 53;
   }
 };
+
+uint32_t timestamp = 0;
 
 EEPROMStore<LightControllerConfiguration> Configuration;
 CommandHandler<> SerialCommandHandler;
@@ -37,36 +35,38 @@ ArduinoTimer UpdateParametersTimer;
 
 void Cmd_SetSunset(CommandParameter &Parameters)
 {
-  Configuration.Data.SunsetTimeHour = Parameters.NextParameterAsInteger(19);
-  Configuration.Data.SunsetTimeMinute = Parameters.NextParameterAsInteger(0);
-  Configuration.Data.SunsetDurationMinutes = Parameters.NextParameterAsInteger(45);
+  uint32_t ss_hour = Parameters.NextParameterAsInteger(19);
+  uint32_t ss_minute = Parameters.NextParameterAsInteger(15);
+  Configuration.Data.SunsetTime = ss_hour*60*60+ss_minute*60;
+  Configuration.Data.SunsetDuration = Parameters.NextParameterAsInteger(45)*60;
   Configuration.Save();
 }
 
 void Cmd_GetSunset(CommandParameter &Parameters)
 {
   Parameters.GetSource().print(F("Sunset Time: "));
-  Parameters.GetSource().print(Configuration.Data.SunsetTimeHour);
+  Parameters.GetSource().print(Configuration.Data.SunsetTime/60/60);
   Parameters.GetSource().print(F(":"));
-  Parameters.GetSource().println(Configuration.Data.SunsetTimeMinute);
+  Parameters.GetSource().println(Configuration.Data.SunsetTime/60%60);
   Parameters.GetSource().print(F("Sunset duration is "));
-  Parameters.GetSource().print(Configuration.Data.SunsetDurationMinutes);
+  Parameters.GetSource().print(Configuration.Data.SunsetDuration/60);
   Parameters.GetSource().println(F(" minutes"));
 }
 
 void Cmd_SetLightDuration(CommandParameter &Parameters)
 {
-  Configuration.Data.LightDurationHours = Parameters.NextParameterAsInteger(9);
-  Configuration.Data.LightDurationMinutes = Parameters.NextParameterAsInteger(30);
+  uint32_t lightd_hours = Parameters.NextParameterAsInteger(9);
+  uint32_t lightd_minutes = Parameters.NextParameterAsInteger(30);
+  Configuration.Data.LightDuration = lightd_minutes*60+lightd_hours*60*60;
   Configuration.Save();
 }
 
 void Cmd_GetLightDuration(CommandParameter &Parameters)
 {
   Parameters.GetSource().print(F("Light Duration: "));
-  Parameters.GetSource().print(Configuration.Data.LightDurationHours);
+  Parameters.GetSource().print(Configuration.Data.LightDuration);
   Parameters.GetSource().print(F(":"));
-  Parameters.GetSource().println(Configuration.Data.LightDurationMinutes);
+  Parameters.GetSource().println(Configuration.Data.LightDuration);
 }
 
 void Cmd_SetMaxBrightness(CommandParameter &Parameters)
@@ -79,11 +79,11 @@ void Cmd_SetMaxBrightness(CommandParameter &Parameters)
     user_p0 = 75;
   }
   if(user_p1<0 || user_p1 > 100) {
-    Parameters.GetSource().println(F("First parameter out of range (values between 0 and 100 are allowed). Default Value of 75 is used"));
+    Parameters.GetSource().println(F("Second parameter out of range (values between 0 and 100 are allowed). Default Value of 75 is used"));
     user_p1 = 75;
   }
   if(user_p2<0 || user_p2 > 100) {
-    Parameters.GetSource().println(F("First parameter out of range (values between 0 and 100 are allowed). Default Value of 75 is used"));
+    Parameters.GetSource().println(F("Third parameter out of range (values between 0 and 100 are allowed). Default Value of 75 is used"));
     user_p2 = 75;
   }
   Configuration.Data.MaxBrightness0 = user_p0*255/100;
@@ -121,9 +121,28 @@ void Cmd_SetClock(CommandParameter &Parameters)
 void Cmd_GetClock(CommandParameter &Parameters)
 {
   Controllino_PrintTimeAndDate();
+  Parameters.GetSource().print(F("timestamp = "));
+  Parameters.GetSource().println(timestamp);
+  Parameters.GetSource().print(F("\nSunset @ "));
+  Parameters.GetSource().print(Configuration.Data.SunsetTime/60/60);
+  Parameters.GetSource().print(F(":"));
+  Parameters.GetSource().print(Configuration.Data.SunsetTime/60%60);
+  Parameters.GetSource().print(F("("));
+  Parameters.GetSource().print(Configuration.Data.SunsetTime);
+  Parameters.GetSource().println(F(")"));
+
 }
 
 void UpdateOutputs(){
+  //if(timestamp>sunset_timestamp && timestamp < sunset_timestamp + sunset_duration_s )
+  if(timestamp>Configuration.Data.SunsetTime &&
+    timestamp < Configuration.Data.SunsetTime+Configuration.Data.SunsetDuration)
+    {
+      int brightness0 = Configuration.Data.MaxBrightness0-(Configuration.Data.MaxBrightness0*(timestamp-Configuration.Data.SunsetTime)/Configuration.Data.SunsetDuration);
+      Serial.print("Current Brightness =");
+      Serial.println(brightness0);
+      analogWrite(CONTROLLINO_AO0, brightness0);
+    }
   return;
 }
 
@@ -134,6 +153,7 @@ void setup() {
   SerialCommandHandler.AddCommand(F("GetSunset"), Cmd_GetSunset);
   SerialCommandHandler.AddCommand(F("SetClock"), Cmd_SetClock);
   SerialCommandHandler.AddCommand(F("GetClock"), Cmd_GetClock);
+  SerialCommandHandler.AddCommand(F("GetConfig"), Cmd_GetClock);
   SerialCommandHandler.AddCommand(F("SetLightDuration"), Cmd_SetLightDuration);
   SerialCommandHandler.AddCommand(F("GetLightDuration"), Cmd_GetLightDuration);
   SerialCommandHandler.AddCommand(F("SetMaxBrightness"), Cmd_SetMaxBrightness);
@@ -149,26 +169,25 @@ void setup() {
 }
 
 void loop() {
-  uint32_t timestamp;
-  uint32_t sunset_timestamp;
-  sunset_timestamp = Configuration.Data.SunsetTimeHour*60*60+
-    Configuration.Data.SunsetTimeMinute*60;
   SerialCommandHandler.Process();
 
-  if( UpdateAoTimer.TimePassed_Milliseconds(200)){
-    timestamp = Controllino_GetSecond();
-    timestamp += Controllino_GetMinute()*60;
-    timestamp += Controllino_GetHour()*60*60;
-    Serial.print("timestamp=");
-    Serial.print(timestamp);
-    Serial.print("; sunset_timestamp=");
-    Serial.println(sunset_timestamp);
+  if( UpdateAoTimer.TimePassed_Milliseconds(1000)){
+    uint32_t controllino_sec = Controllino_GetSecond();
+    uint32_t controllino_min = Controllino_GetMinute();
+    uint32_t controllino_hour = Controllino_GetHour();
+    timestamp = controllino_sec;
+    timestamp += controllino_min*60;
+    timestamp += controllino_hour*60*60;
+    //Serial.print("timestamp=");
+    //Serial.print(timestamp);
+    //Serial.print("; sunset_timestamp=");
+    //Serial.println(Configuration.Data.SunsetTime);
     UpdateOutputs();
 
   }
 
   if( UpdateParametersTimer.TimePassed_Seconds(10)){
-    sunset_timestamp = Configuration.Data.SunsetTimeHour*60*60+
-      Configuration.Data.SunsetTimeMinute*60;
+    //sunset_timestamp = Configuration.Data.SunsetTimeHour*60*60+
+    //  Configuration.Data.SunsetTimeMinute*60;
   }
 }
