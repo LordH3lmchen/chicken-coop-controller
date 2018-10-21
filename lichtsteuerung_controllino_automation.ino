@@ -6,6 +6,16 @@
 
 #define DEBUG_OUPUT 0
 
+struct NestControllerConfiguration
+{
+    int32_t NestOpenSunsetOffset;
+    int32_t NestCloseSunsetOffset;
+    void Reset() {
+        NestOpenSunsetOffset = 3*60*60; // 3 hours after sunset
+        NestCloseSunsetOffset = -1*60*60; // 1 hour before sunset
+    }
+};
+
 struct LightControllerConfiguration
 {
   uint32_t SunsetTime;
@@ -41,26 +51,18 @@ struct LightControllerConfiguration
 uint32_t timestamp = 0;
 uint32_t sunriseTime;
 
-EEPROMStore<LightControllerConfiguration> Cfg;
+EEPROMStore<LightControllerConfiguration> LightCfg;
+EEPROMStore<NestControllerConfiguration> NestCfg;
 CommandHandler<12, 35, 7> SerialCommandHandler;
 ArduinoTimer UpdateAoTimer;
 ArduinoTimer UpdateParametersTimer;
-
 
 void Cmd_SetSunset(CommandParameter &Parameters)
 {
   uint32_t ss_hour = Parameters.NextParameterAsInteger(19);
   uint32_t ss_minute = Parameters.NextParameterAsInteger(15);
-  Cfg.Data.SunsetTime = ss_hour*60*60+ss_minute*60;
-  Cfg.Save();
-}
-
-void Cmd_GetSunset(CommandParameter &Parameters)
-{
-  Parameters.GetSource().print(F("Sunset Time: "));
-  Parameters.GetSource().print(Cfg.Data.SunsetTime/60/60);
-  Parameters.GetSource().print(F(":"));
-  Parameters.GetSource().println(Cfg.Data.SunsetTime/60%60);
+  LightCfg.Data.SunsetTime = ss_hour*60*60+ss_minute*60;
+  LightCfg.Save();
 }
 
 void Cmd_SetLightDuration(CommandParameter &Parameters)
@@ -69,24 +71,10 @@ void Cmd_SetLightDuration(CommandParameter &Parameters)
   uint32_t lightd_minutes = Parameters.NextParameterAsInteger(30);
   uint32_t sr_duration = Parameters.NextParameterAsInteger(30);
   uint32_t ss_duration = Parameters.NextParameterAsInteger(45);
-  Cfg.Data.LightDuration = lightd_minutes*60+lightd_hours*60*60;
-  Cfg.Data.SunriseDuration = sr_duration*60;
-  Cfg.Data.SunsetDuration = ss_duration*60;
-  Cfg.Save();
-}
-
-void Cmd_GetLightDuration(CommandParameter &Parameters)
-{
-  Parameters.GetSource().print(F("Light Duration: "));
-  Parameters.GetSource().print(Cfg.Data.LightDuration/60/60);
-  Parameters.GetSource().print(F(":"));
-  Parameters.GetSource().println(Cfg.Data.LightDuration/60%60);
-  Parameters.GetSource().print(F("Sunrise duration is "));
-  Parameters.GetSource().print(Cfg.Data.SunriseDuration/60);
-  Parameters.GetSource().println(F(" minutes"));
-  Parameters.GetSource().print(F("Sunset duration is "));
-  Parameters.GetSource().print(Cfg.Data.SunsetDuration/60);
-  Parameters.GetSource().println(F(" minutes"));
+  LightCfg.Data.LightDuration = lightd_minutes*60+lightd_hours*60*60;
+  LightCfg.Data.SunriseDuration = sr_duration*60;
+  LightCfg.Data.SunsetDuration = ss_duration*60;
+  LightCfg.Save();
 }
 
 void Cmd_SetMaxBrightness(CommandParameter &Parameters)
@@ -106,21 +94,11 @@ void Cmd_SetMaxBrightness(CommandParameter &Parameters)
     Parameters.GetSource().println(F("Third parameter out of range (values between 0 and 100 are allowed). Default Value of 75 is used"));
     user_p2 = 75;
   }
-  Cfg.Data.MaxBrightness0 = user_p0*255/100;
-  Cfg.Data.MaxBrightness1 = user_p1*255/100;
-  Cfg.Data.MaxBrightness2 = user_p2*106/100;
-  Cfg.Save();
+  LightCfg.Data.MaxBrightness0 = user_p0*255/100;
+  LightCfg.Data.MaxBrightness1 = user_p1*255/100;
+  LightCfg.Data.MaxBrightness2 = user_p2*106/100;
+  LightCfg.Save();
 }
-
-void Cmd_GetMaxBrightness(CommandParameter &Parameters) {
-  Parameters.GetSource().print(F("Light MaxBrightness: "));
-  Parameters.GetSource().print(Cfg.Data.MaxBrightness0);
-  Parameters.GetSource().print(F(":"));
-  Parameters.GetSource().print(Cfg.Data.MaxBrightness1);
-  Parameters.GetSource().print(F(":"));
-  Parameters.GetSource().println(Cfg.Data.MaxBrightness2);
-}
-
 
 void Cmd_SetClock(CommandParameter &Parameters)
 {
@@ -144,11 +122,11 @@ void Cmd_GetClock(CommandParameter &Parameters)
   Parameters.GetSource().print(F("timestamp = "));
   Parameters.GetSource().println(timestamp);
   Parameters.GetSource().print(F("\nSunset @ "));
-  Parameters.GetSource().print(Cfg.Data.SunsetTime/60/60);
+  Parameters.GetSource().print(LightCfg.Data.SunsetTime/60/60);
   Parameters.GetSource().print(F(":"));
-  Parameters.GetSource().print(Cfg.Data.SunsetTime/60%60);
+  Parameters.GetSource().print(LightCfg.Data.SunsetTime/60%60);
   Parameters.GetSource().print(F("("));
-  Parameters.GetSource().print(Cfg.Data.SunsetTime);
+  Parameters.GetSource().print(LightCfg.Data.SunsetTime);
   Parameters.GetSource().println(F(")"));
   Parameters.GetSource().print(F("Sunrise @ "));
   Parameters.GetSource().print(sunriseTime/60/60);
@@ -157,43 +135,66 @@ void Cmd_GetClock(CommandParameter &Parameters)
   Parameters.GetSource().print(F("("));
   Parameters.GetSource().print(sunriseTime);
   Parameters.GetSource().println(F(")"));
+  Parameters.GetSource().print(F("\nLight Duration: "));
+  Parameters.GetSource().print(LightCfg.Data.LightDuration/60/60);
+  Parameters.GetSource().print(F(":"));
+  Parameters.GetSource().println(LightCfg.Data.LightDuration/60%60);
+  Parameters.GetSource().print(F("Sunrise duration is "));
+  Parameters.GetSource().print(LightCfg.Data.SunriseDuration/60);
+  Parameters.GetSource().println(F(" minutes"));
+  Parameters.GetSource().print(F("Sunset duration is "));
+  Parameters.GetSource().print(LightCfg.Data.SunsetDuration/60);
+  Parameters.GetSource().println(F(" minutes"));
+  Parameters.GetSource().print(F("Brightness Settings\nLight MaxBrightness0="));
+  Parameters.GetSource().println(LightCfg.Data.MaxBrightness0);
+  Parameters.GetSource().print(F("Light MaxBrightness1="));
+  Parameters.GetSource().println(LightCfg.Data.MaxBrightness1);
+  Parameters.GetSource().print(F("Light MaxBrightness2="));
+  Parameters.GetSource().println(LightCfg.Data.MaxBrightness2);
 }
 
 void Cmd_SetDelays(CommandParameter &Parameters) {
   uint32_t delay0 = Parameters.NextParameterAsInteger(0);
   uint32_t delay1 = Parameters.NextParameterAsInteger(2);
   uint32_t delay2 = Parameters.NextParameterAsInteger(1);
-  Cfg.Data.SSDelayA0 = delay0*60;
-  Cfg.Data.SSDelayA1 = delay1*60;
-  Cfg.Data.SSDelayDO0 = delay2*60;
-  Cfg.Save();
+  LightCfg.Data.SSDelayA0 = delay0*60;
+  LightCfg.Data.SSDelayA1 = delay1*60;
+  LightCfg.Data.SSDelayDO0 = delay2*60;
+  LightCfg.Save();
+}
+
+void Cmd_SetNestSunsetOffset(CommandParameter &Parameters) {
+    int32_t offset0 = Parameters.NextParameterAsInteger(60);
+    int32_t offset1 = Parameters.NextParameterAsInteger(60);
+    NestCfg.Data.NestOpenSunsetOffset = offset0 * 60;
+    NestCfg.Data.NestCloseSunsetOffset = offset1 * 60;
 }
 
 void UpdateOutputAO0() {
   Serial.print(F("Channel 0 - "));
-  if (timestamp >= sunriseTime+Cfg.Data.SRDelayA0
-    && timestamp < sunriseTime+Cfg.Data.SRDelayA0+Cfg.Data.SunriseDuration) // if(sunrise)
+  if (timestamp >= sunriseTime+LightCfg.Data.SRDelayA0
+    && timestamp < sunriseTime+LightCfg.Data.SRDelayA0+LightCfg.Data.SunriseDuration) // if(sunrise)
   {
-    int brightness = Cfg.Data.MaxBrightness0*(timestamp-sunriseTime-Cfg.Data.SRDelayA0)/Cfg.Data.SunriseDuration;
+    int brightness = LightCfg.Data.MaxBrightness0*(timestamp-sunriseTime-LightCfg.Data.SRDelayA0)/LightCfg.Data.SunriseDuration;
     analogWrite(CONTROLLINO_AO0, brightness);
     #if DEBUG_OUPUT >= 1
       Serial.print(F("Sunrise: "));
       Serial.println(brightness);
     #endif
   }
-  else if (timestamp >= sunriseTime+Cfg.Data.SRDelayA0+Cfg.Data.SunriseDuration // if(day)
-    && timestamp < Cfg.Data.SunsetTime+Cfg.Data.SSDelayA0)
+  else if (timestamp >= sunriseTime+LightCfg.Data.SRDelayA0+LightCfg.Data.SunriseDuration // if(day)
+    && timestamp < LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayA0)
   {
-    analogWrite(CONTROLLINO_AO0, Cfg.Data.MaxBrightness0);
+    analogWrite(CONTROLLINO_AO0, LightCfg.Data.MaxBrightness0);
     #if DEBUG_OUPUT >= 1
       Serial.print(F("Day:     "));
-      Serial.println(Cfg.Data.MaxBrightness0);
+      Serial.println(LightCfg.Data.MaxBrightness0);
     #endif
   }
-  else if(timestamp >= Cfg.Data.SunsetTime+Cfg.Data.SSDelayA0 &&
-    timestamp < Cfg.Data.SunsetTime+Cfg.Data.SunsetDuration+Cfg.Data.SSDelayA0) // if(sunset)
+  else if(timestamp >= LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayA0 &&
+    timestamp < LightCfg.Data.SunsetTime+LightCfg.Data.SunsetDuration+LightCfg.Data.SSDelayA0) // if(sunset)
   {
-    int brightness = Cfg.Data.MaxBrightness0-(Cfg.Data.MaxBrightness0*(timestamp-Cfg.Data.SunsetTime-Cfg.Data.SSDelayA0)/Cfg.Data.SunsetDuration);
+    int brightness = LightCfg.Data.MaxBrightness0-(LightCfg.Data.MaxBrightness0*(timestamp-LightCfg.Data.SunsetTime-LightCfg.Data.SSDelayA0)/LightCfg.Data.SunsetDuration);
     analogWrite(CONTROLLINO_AO0, brightness);
     #if DEBUG_OUPUT >= 1
       Serial.print(F("Sunset:  "));
@@ -213,29 +214,29 @@ void UpdateOutputAO0() {
 
 void UpdateOutputAO1() {
   Serial.print(F("Channel 1 - "));
-  if (timestamp >= sunriseTime+Cfg.Data.SRDelayA1
-    && timestamp < sunriseTime+Cfg.Data.SRDelayA1+Cfg.Data.SunriseDuration) // if(sunrise)
+  if (timestamp >= sunriseTime+LightCfg.Data.SRDelayA1
+    && timestamp < sunriseTime+LightCfg.Data.SRDelayA1+LightCfg.Data.SunriseDuration) // if(sunrise)
   {
-    int brightness = Cfg.Data.MaxBrightness1*(timestamp-sunriseTime-Cfg.Data.SRDelayA1)/Cfg.Data.SunriseDuration;
+    int brightness = LightCfg.Data.MaxBrightness1*(timestamp-sunriseTime-LightCfg.Data.SRDelayA1)/LightCfg.Data.SunriseDuration;
     analogWrite(CONTROLLINO_AO1, brightness);
     #if DEBUG_OUPUT >= 1
       Serial.print(F("Sunrise: "));
       Serial.println(brightness);
     #endif
   }
-  else if (timestamp >= sunriseTime+Cfg.Data.SRDelayA1+Cfg.Data.SunriseDuration // if(day)
-    && timestamp < Cfg.Data.SunsetTime+Cfg.Data.SSDelayA1)
+  else if (timestamp >= sunriseTime+LightCfg.Data.SRDelayA1+LightCfg.Data.SunriseDuration // if(day)
+    && timestamp < LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayA1)
   {
-    analogWrite(CONTROLLINO_AO1, Cfg.Data.MaxBrightness1);
+    analogWrite(CONTROLLINO_AO1, LightCfg.Data.MaxBrightness1);
     #if DEBUG_OUPUT >= 1
       Serial.print(F("Day:     "));
-      Serial.println(Cfg.Data.MaxBrightness1);
+      Serial.println(LightCfg.Data.MaxBrightness1);
     #endif
   }
-  else if(timestamp >= Cfg.Data.SunsetTime+Cfg.Data.SSDelayA1 &&
-    timestamp < Cfg.Data.SunsetTime+Cfg.Data.SunsetDuration+Cfg.Data.SSDelayA1) // if(sunset)
+  else if(timestamp >= LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayA1 &&
+    timestamp < LightCfg.Data.SunsetTime+LightCfg.Data.SunsetDuration+LightCfg.Data.SSDelayA1) // if(sunset)
   {
-    int brightness = Cfg.Data.MaxBrightness1-(Cfg.Data.MaxBrightness1*(timestamp-Cfg.Data.SunsetTime-Cfg.Data.SSDelayA1)/Cfg.Data.SunsetDuration);
+    int brightness = LightCfg.Data.MaxBrightness1-(LightCfg.Data.MaxBrightness1*(timestamp-LightCfg.Data.SunsetTime-LightCfg.Data.SSDelayA1)/LightCfg.Data.SunsetDuration);
     analogWrite(CONTROLLINO_AO1, brightness);
     #if DEBUG_OUPUT >= 1
       Serial.print(F("Sunset:  "));
@@ -254,10 +255,10 @@ void UpdateOutputAO1() {
 
 void UpdateOutputDO0() {
   Serial.print(F("Channel 2 - "));
-  if (timestamp >= sunriseTime+Cfg.Data.SRDelayDO0
-    && timestamp < sunriseTime+Cfg.Data.SRDelayDO0+Cfg.Data.SunriseDuration) // if(sunrise)
+  if (timestamp >= sunriseTime+LightCfg.Data.SRDelayDO0
+    && timestamp < sunriseTime+LightCfg.Data.SRDelayDO0+LightCfg.Data.SunriseDuration) // if(sunrise)
   {
-    int brightness = Cfg.Data.MaxBrightness2*(timestamp-sunriseTime-Cfg.Data.SRDelayDO0)/Cfg.Data.SunriseDuration;
+    int brightness = LightCfg.Data.MaxBrightness2*(timestamp-sunriseTime-LightCfg.Data.SRDelayDO0)/LightCfg.Data.SunriseDuration;
     //analogWrite(CONTROLLINO_DO7, brightness);
     digitalWrite(CONTROLLINO_R9, LOW);
     #if DEBUG_OUPUT >= 1
@@ -265,20 +266,20 @@ void UpdateOutputDO0() {
       Serial.println(brightness);
     #endif
   }
-  else if (timestamp >= sunriseTime+Cfg.Data.SRDelayDO0+Cfg.Data.SunriseDuration // if(day)
-    && timestamp < Cfg.Data.SunsetTime+Cfg.Data.SSDelayDO0)
+  else if (timestamp >= sunriseTime+LightCfg.Data.SRDelayDO0+LightCfg.Data.SunriseDuration // if(day)
+    && timestamp < LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayDO0)
   {
-    //analogWrite(CONTROLLINO_DO7, Cfg.Data.MaxBrightness2);
+    //analogWrite(CONTROLLINO_DO7, LightCfg.Data.MaxBrightness2);
     digitalWrite(CONTROLLINO_R9, HIGH);
     #if DEBUG_OUPUT >= 1
       Serial.print(F("Day:     "));
-      Serial.println(Cfg.Data.MaxBrightness2);
+      Serial.println(LightCfg.Data.MaxBrightness2);
     #endif
   }
-  else if(timestamp >= Cfg.Data.SunsetTime+Cfg.Data.SSDelayDO0 &&
-    timestamp < Cfg.Data.SunsetTime+Cfg.Data.SunsetDuration+Cfg.Data.SSDelayDO0) // if(sunset)
+  else if(timestamp >= LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayDO0 &&
+    timestamp < LightCfg.Data.SunsetTime+LightCfg.Data.SunsetDuration+LightCfg.Data.SSDelayDO0) // if(sunset)
   {
-    int brightness = Cfg.Data.MaxBrightness2-(Cfg.Data.MaxBrightness2*(timestamp-Cfg.Data.SunsetTime-Cfg.Data.SSDelayDO0)/Cfg.Data.SunsetDuration);
+    int brightness = LightCfg.Data.MaxBrightness2-(LightCfg.Data.MaxBrightness2*(timestamp-LightCfg.Data.SunsetTime-LightCfg.Data.SSDelayDO0)/LightCfg.Data.SunsetDuration);
     //analogWrite(CONTROLLINO_DO7, brightness);
     digitalWrite(CONTROLLINO_R9, LOW);
     #if DEBUG_OUPUT >= 1
@@ -299,30 +300,27 @@ void UpdateOutputDO0() {
 
 
 void UpdateOutputs(){
-  sunriseTime = Cfg.Data.SunsetTime-Cfg.Data.LightDuration;
+  sunriseTime = LightCfg.Data.SunsetTime-LightCfg.Data.LightDuration;
   Serial.println(timestamp);
   UpdateOutputAO0();
   UpdateOutputAO1();
   UpdateOutputDO0();
-
 }
 
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
   SerialCommandHandler.AddCommand(F("SetSunset"), Cmd_SetSunset);
-  SerialCommandHandler.AddCommand(F("GetSunset"), Cmd_GetSunset);
   SerialCommandHandler.AddCommand(F("SetClock"), Cmd_SetClock);
   SerialCommandHandler.AddCommand(F("GetClock"), Cmd_GetClock);
   SerialCommandHandler.AddCommand(F("GetConfig"), Cmd_GetClock);
   SerialCommandHandler.AddCommand(F("SetLightDuration"), Cmd_SetLightDuration);
-  SerialCommandHandler.AddCommand(F("GetLightDuration"), Cmd_GetLightDuration);
   SerialCommandHandler.AddCommand(F("SetMaxBrightness"), Cmd_SetMaxBrightness);
-  SerialCommandHandler.AddCommand(F("GetMaxBrightness"), Cmd_GetMaxBrightness);
   SerialCommandHandler.AddCommand(F("SetDelays"), Cmd_SetDelays);
+  SerialCommandHandler.AddCommand(F("SetNestOffset"), Cmd_SetNestSunsetOffset);
 
   Controllino_RTC_init();
-  Cfg.Load();
+  LightCfg.Load();
 
   pinMode(CONTROLLINO_AO0, OUTPUT);
   pinMode(CONTROLLINO_AO1, OUTPUT);
