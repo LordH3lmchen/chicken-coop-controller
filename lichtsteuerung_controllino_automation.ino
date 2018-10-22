@@ -5,6 +5,11 @@
 #include "Controllino.h"
 
 #define DEBUG_OUPUT 0
+/*
+* This disables the clock and mocks it with millis(), for testing purposes
+* it is usefull. 1 day runs in about 864s (14min and 24s)
+*/
+#define MOCK_CLOCK 1
 
 struct NestControllerConfiguration
 {
@@ -364,17 +369,23 @@ void setup() {
 
 void loop() {
   SerialCommandHandler.Process();
-  #if DEBUG_OUPUT == 2 || DEBUG_OUPUT == 1
+  #if MOCK_CLOCK == 1
+    if(UpdateAoTimer.TimePassed_Milliseconds(200)){
+  #elif DEBUG_OUPUT == 2 || DEBUG_OUPUT == 1
     if(UpdateAoTimer.TimePassed_Milliseconds(3000)){ //slow down in debug mode 1 or 2
   #else
-    if( UpdateAoTimer.TimePassed_Milliseconds(200)){ //faster in production
+    if(UpdateAoTimer.TimePassed_Milliseconds(200)){ //faster in production
   #endif
       uint32_t controllino_sec = Controllino_GetSecond();
       uint32_t controllino_min = Controllino_GetMinute();
       uint32_t controllino_hour = Controllino_GetHour();
-      timestamp = controllino_sec;
-      timestamp += controllino_min*60;
-      timestamp += controllino_hour*60*60;
+      #if MOCK_CLOCK == 0
+        timestamp = controllino_sec;
+        timestamp += controllino_min*60;
+        timestamp += controllino_hour*60*60;
+      #elif MOCK_CLOCK == 1
+        timestamp = millis()/100%(24*60*60);
+      #endif
       #if DEBUG_OUPUT == 2 || DEBUG_OUPUT == 4
         Serial.print("timestamp=");
         Serial.print(timestamp);
