@@ -116,7 +116,7 @@ void Cmd_SetClock(CommandParameter &Parameters)
   }
 }
 
-void Cmd_GetClock(CommandParameter &Parameters)
+void Cmd_GetConfig(CommandParameter &Parameters)
 {
   Controllino_PrintTimeAndDate();
   Parameters.GetSource().print(F("timestamp = "));
@@ -134,6 +134,20 @@ void Cmd_GetClock(CommandParameter &Parameters)
   Parameters.GetSource().print(sunriseTime/60%60);
   Parameters.GetSource().print(F("("));
   Parameters.GetSource().print(sunriseTime);
+  Parameters.GetSource().println(F(")"));
+  Parameters.GetSource().print(F("\nNestOpenTime @ "));
+  Parameters.GetSource().print((LightCfg.Data.SunsetTime + NestCfg.Data.NestCloseSunsetOffset)/60/60);
+  Parameters.GetSource().print(F(":"));
+  Parameters.GetSource().print((LightCfg.Data.SunsetTime + NestCfg.Data.NestCloseSunsetOffset)/60%60);
+  Parameters.GetSource().print(F(" ("));
+  Parameters.GetSource().print(LightCfg.Data.SunsetTime + NestCfg.Data.NestCloseSunsetOffset);
+  Parameters.GetSource().println(F(")"));
+  Parameters.GetSource().print(F("NestCloseTime @ "));
+  Parameters.GetSource().print((LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset)/60/60);
+  Parameters.GetSource().print(F(":"));
+  Parameters.GetSource().print((LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset)/60%60);
+  Parameters.GetSource().print(F(" ("));
+  Parameters.GetSource().print(LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset);
   Parameters.GetSource().println(F(")"));
   Parameters.GetSource().print(F("\nLight Duration: "));
   Parameters.GetSource().print(LightCfg.Data.LightDuration/60/60);
@@ -171,7 +185,9 @@ void Cmd_SetNestSunsetOffset(CommandParameter &Parameters) {
 }
 
 void UpdateOutputAO0() {
-  Serial.print(F("Channel 0 - "));
+  #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
+    Serial.print(F("Channel 0 - "));
+  #endif
   if (timestamp >= sunriseTime+LightCfg.Data.SRDelayA0
     && timestamp < sunriseTime+LightCfg.Data.SRDelayA0+LightCfg.Data.SunriseDuration) // if(sunrise)
   {
@@ -213,7 +229,9 @@ void UpdateOutputAO0() {
 
 
 void UpdateOutputAO1() {
-  Serial.print(F("Channel 1 - "));
+  #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
+    Serial.print(F("Channel 1 - "));
+  #endif
   if (timestamp >= sunriseTime+LightCfg.Data.SRDelayA1
     && timestamp < sunriseTime+LightCfg.Data.SRDelayA1+LightCfg.Data.SunriseDuration) // if(sunrise)
   {
@@ -254,7 +272,9 @@ void UpdateOutputAO1() {
 }
 
 void UpdateOutputDO0() {
-  Serial.print(F("Channel 2 - "));
+    #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
+      Serial.print(F("Channel 2 - "));
+    #endif
   if (timestamp >= sunriseTime+LightCfg.Data.SRDelayDO0
     && timestamp < sunriseTime+LightCfg.Data.SRDelayDO0+LightCfg.Data.SunriseDuration) // if(sunrise)
   {
@@ -301,13 +321,22 @@ void UpdateOutputDO0() {
 
 void UpdateLightOutputs(){
   sunriseTime = LightCfg.Data.SunsetTime-LightCfg.Data.LightDuration;
-  Serial.println(timestamp);
   UpdateOutputAO0();
   UpdateOutputAO1();
   UpdateOutputDO0();
 }
 
-void UpdateNestOutputs() {
+void UpdateNestOutputs() { //HIGH == Nest UP; LOW == Nest Down;
+    if(timestamp == LightCfg.Data.SunsetTime + NestCfg.Data.NestCloseSunsetOffset) {
+        if(digitalRead(CONTROLLINO_R0) == LOW) {
+            digitalWrite(CONTROLLINO_R0, HIGH);
+        }
+    }
+    if(timestamp == LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset) {
+        if(digitalRead(CONTROLLINO_R0) == HIGH) {
+            digitalWrite(CONTROLLINO_R0, LOW);
+        }
+    }
     return;
 }
 
@@ -316,26 +345,27 @@ void setup() {
   Serial.begin(9600);
   SerialCommandHandler.AddCommand(F("SetSunset"), Cmd_SetSunset);
   SerialCommandHandler.AddCommand(F("SetClock"), Cmd_SetClock);
-  SerialCommandHandler.AddCommand(F("GetClock"), Cmd_GetClock);
-  SerialCommandHandler.AddCommand(F("GetConfig"), Cmd_GetClock);
+  SerialCommandHandler.AddCommand(F("GetClock"), Cmd_GetConfig);
+  SerialCommandHandler.AddCommand(F("GetConfig"), Cmd_GetConfig);
   SerialCommandHandler.AddCommand(F("SetLightDuration"), Cmd_SetLightDuration);
   SerialCommandHandler.AddCommand(F("SetMaxBrightness"), Cmd_SetMaxBrightness);
   SerialCommandHandler.AddCommand(F("SetDelays"), Cmd_SetDelays);
   SerialCommandHandler.AddCommand(F("SetNestOffset"), Cmd_SetNestSunsetOffset);
-
   Controllino_RTC_init();
   LightCfg.Load();
+  NestCfg.Load();
 
   pinMode(CONTROLLINO_AO0, OUTPUT);
   pinMode(CONTROLLINO_AO1, OUTPUT);
   pinMode(CONTROLLINO_DO7, OUTPUT);
   pinMode(CONTROLLINO_R9, OUTPUT);
+  pinMode(CONTROLLINO_R0, OUTPUT);
 }
 
 void loop() {
   SerialCommandHandler.Process();
-  #if DEBUG_OUPUT >= 1
-    if(UpdateAoTimer.TimePassed_Milliseconds(3000)){ //slow down in debug mode
+  #if DEBUG_OUPUT == 2 || DEBUG_OUPUT == 1
+    if(UpdateAoTimer.TimePassed_Milliseconds(3000)){ //slow down in debug mode 1 or 2
   #else
     if( UpdateAoTimer.TimePassed_Milliseconds(200)){ //faster in production
   #endif
@@ -345,12 +375,10 @@ void loop() {
       timestamp = controllino_sec;
       timestamp += controllino_min*60;
       timestamp += controllino_hour*60*60;
-
       #if DEBUG_OUPUT == 2 || DEBUG_OUPUT == 4
         Serial.print("timestamp=");
         Serial.print(timestamp);
       #endif
-
       UpdateLightOutputs();
       UpdateNestOutputs();
     }
