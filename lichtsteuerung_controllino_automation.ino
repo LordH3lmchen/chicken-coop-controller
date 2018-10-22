@@ -16,8 +16,8 @@ struct NestControllerConfiguration
     int32_t NestOpenSunsetOffset;
     int32_t NestCloseSunsetOffset;
     void Reset() {
-        NestOpenSunsetOffset = 3*60*60; // 3 hours after sunset
-        NestCloseSunsetOffset = -1*60*60; // 1 hour before sunset
+        NestOpenSunsetOffset = 3l*60l*60l; // 3 hours after sunset
+        NestCloseSunsetOffset = -1*60l*60l; // 1 hour before sunset
     }
 };
 
@@ -37,23 +37,23 @@ struct LightControllerConfiguration
   uint32_t SRDelayA1;
   uint32_t SRDelayDO0;
   void Reset() {
-    SunsetTime = 16*60*60;
-    SunsetDuration = 60*60;
-    SunriseDuration = 30*60;
-    LightDuration = 10*60*60+0*60;
+    SunsetTime = 16ul*60ul*60ul;
+    SunsetDuration = 60ul*60ul;
+    SunriseDuration = 30ul*60ul;
+    LightDuration = 10ul*60ul*60ul;
     MaxBrightness0 = 178;
     MaxBrightness1 = 178;
     MaxBrightness2 = 53;
-    SSDelayA0 = 0;
-    SSDelayA1 = 10*60;
-    SSDelayDO0 = 20*60;
-    SRDelayA0 = 0;
-    SRDelayA1 = 10*60;
-    SRDelayDO0 = 20*60;
+    SSDelayA0 = 0ul;
+    SSDelayA1 = 10ul*60ul;
+    SSDelayDO0 = 20ul*60ul;
+    SRDelayA0 = 0ul;
+    SRDelayA1 = 10ul*60ul;
+    SRDelayDO0 = 20ul*60ul;
   }
 };
 
-uint32_t timestamp = 0;
+uint32_t timestamp = 0ul;
 uint32_t sunriseTime;
 
 EEPROMStore<LightControllerConfiguration> LightCfg;
@@ -69,7 +69,7 @@ void Cmd_SetSunset(CommandParameter &Parameters)
 {
   uint32_t ss_hour = Parameters.NextParameterAsInteger(19);
   uint32_t ss_minute = Parameters.NextParameterAsInteger(15);
-  LightCfg.Data.SunsetTime = ss_hour*60*60+ss_minute*60;
+  LightCfg.Data.SunsetTime = ss_hour*60ul*60ul+ss_minute*60ul;
   LightCfg.Save();
 }
 
@@ -79,9 +79,9 @@ void Cmd_SetLightDuration(CommandParameter &Parameters)
   uint32_t lightd_minutes = Parameters.NextParameterAsInteger(30);
   uint32_t sr_duration = Parameters.NextParameterAsInteger(30);
   uint32_t ss_duration = Parameters.NextParameterAsInteger(45);
-  LightCfg.Data.LightDuration = lightd_minutes*60+lightd_hours*60*60;
-  LightCfg.Data.SunriseDuration = sr_duration*60;
-  LightCfg.Data.SunsetDuration = ss_duration*60;
+  LightCfg.Data.LightDuration = lightd_minutes*60ul+lightd_hours*60ul*60ul;
+  LightCfg.Data.SunriseDuration = sr_duration*60ul;
+  LightCfg.Data.SunsetDuration = ss_duration*60ul;
   LightCfg.Save();
 }
 
@@ -128,51 +128,51 @@ void Cmd_GetConfig(CommandParameter &Parameters)
 {
   #if MOCK_CLOCK
     Parameters.GetSource().println(F("MOCKED TIME!!!"));
-    Parameters.GetSource().print(timestamp/60/60);
+    Parameters.GetSource().print(timestamp/60ul/60ul);
     Parameters.GetSource().print(F(":"));
-    Parameters.GetSource().println(timestamp/60%60);
+    Parameters.GetSource().println(timestamp/60ul%60ul);
   #else
     Controllino_PrintTimeAndDate();
   #endif
   Parameters.GetSource().print(F("timestamp = "));
   Parameters.GetSource().println(timestamp);
   Parameters.GetSource().print(F("\nSunset @ "));
-  Parameters.GetSource().print(LightCfg.Data.SunsetTime/60/60);
+  Parameters.GetSource().print(LightCfg.Data.SunsetTime/60ul/60ul);
   Parameters.GetSource().print(F(":"));
-  Parameters.GetSource().print(LightCfg.Data.SunsetTime/60%60);
+  Parameters.GetSource().print(LightCfg.Data.SunsetTime/60ul%60ul);
   Parameters.GetSource().print(F("("));
   Parameters.GetSource().print(LightCfg.Data.SunsetTime);
   Parameters.GetSource().println(F(")"));
   Parameters.GetSource().print(F("Sunrise @ "));
-  Parameters.GetSource().print(sunriseTime/60/60);
+  Parameters.GetSource().print(sunriseTime/60ul/60ul);
   Parameters.GetSource().print(F(":"));
-  Parameters.GetSource().print(sunriseTime/60%60);
+  Parameters.GetSource().print(sunriseTime/60ul%60ul);
   Parameters.GetSource().print(F("("));
   Parameters.GetSource().print(sunriseTime);
   Parameters.GetSource().println(F(")"));
   Parameters.GetSource().print(F("\nNestCloseTime @ "));
-  Parameters.GetSource().print((LightCfg.Data.SunsetTime + NestCfg.Data.NestCloseSunsetOffset)/60/60);
+  Parameters.GetSource().print((LightCfg.Data.SunsetTime + NestCfg.Data.NestCloseSunsetOffset)/60ul/60ul);
   Parameters.GetSource().print(F(":"));
-  Parameters.GetSource().print((LightCfg.Data.SunsetTime + NestCfg.Data.NestCloseSunsetOffset)/60%60);
+  Parameters.GetSource().print((LightCfg.Data.SunsetTime + NestCfg.Data.NestCloseSunsetOffset)/60ul%60ul);
   Parameters.GetSource().print(F(" ("));
   Parameters.GetSource().print(LightCfg.Data.SunsetTime + NestCfg.Data.NestCloseSunsetOffset);
   Parameters.GetSource().println(F(")"));
   Parameters.GetSource().print(F("NestOpenTime @ "));
-  Parameters.GetSource().print((LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset)/60/60);
+  Parameters.GetSource().print((LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset)/60ul/60ul);
   Parameters.GetSource().print(F(":"));
-  Parameters.GetSource().print((LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset)/60%60);
+  Parameters.GetSource().print((LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset)/60ul%60ul);
   Parameters.GetSource().print(F(" ("));
   Parameters.GetSource().print(LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset);
   Parameters.GetSource().println(F(")"));
   Parameters.GetSource().print(F("\nLight Duration: "));
-  Parameters.GetSource().print(LightCfg.Data.LightDuration/60/60);
+  Parameters.GetSource().print(LightCfg.Data.LightDuration/60ul/60ul);
   Parameters.GetSource().print(F(":"));
-  Parameters.GetSource().println(LightCfg.Data.LightDuration/60%60);
+  Parameters.GetSource().println(LightCfg.Data.LightDuration/60ul%60ul);
   Parameters.GetSource().print(F("Sunrise duration is "));
-  Parameters.GetSource().print(LightCfg.Data.SunriseDuration/60);
+  Parameters.GetSource().print(LightCfg.Data.SunriseDuration/60ul);
   Parameters.GetSource().println(F(" minutes"));
   Parameters.GetSource().print(F("Sunset duration is "));
-  Parameters.GetSource().print(LightCfg.Data.SunsetDuration/60);
+  Parameters.GetSource().print(LightCfg.Data.SunsetDuration/60ul);
   Parameters.GetSource().println(F(" minutes"));
   Parameters.GetSource().print(F("Brightness Settings\nLight MaxBrightness0="));
   Parameters.GetSource().println(LightCfg.Data.MaxBrightness0);
@@ -186,17 +186,17 @@ void Cmd_SetDelays(CommandParameter &Parameters) {
   uint32_t delay0 = Parameters.NextParameterAsInteger(0);
   uint32_t delay1 = Parameters.NextParameterAsInteger(2);
   uint32_t delay2 = Parameters.NextParameterAsInteger(1);
-  LightCfg.Data.SSDelayA0 = delay0*60;
-  LightCfg.Data.SSDelayA1 = delay1*60;
-  LightCfg.Data.SSDelayDO0 = delay2*60;
+  LightCfg.Data.SSDelayA0 = delay0*60ul;
+  LightCfg.Data.SSDelayA1 = delay1*60ul;
+  LightCfg.Data.SSDelayDO0 = delay2*60ul;
   LightCfg.Save();
 }
 
 void Cmd_SetNestSunsetOffset(CommandParameter &Parameters) {
     int32_t offset0 = Parameters.NextParameterAsInteger(60);
     int32_t offset1 = Parameters.NextParameterAsInteger(60);
-    NestCfg.Data.NestOpenSunsetOffset = offset0 * 60;
-    NestCfg.Data.NestCloseSunsetOffset = offset1 * 60;
+    NestCfg.Data.NestOpenSunsetOffset = offset0*60ul;
+    NestCfg.Data.NestCloseSunsetOffset = offset1*60ul;
 }
 
 void UpdateOutputAO0() {
@@ -400,11 +400,11 @@ void loop() {
       uint32_t controllino_hour = Controllino_GetHour();
       #if MOCK_CLOCK == 0
         timestamp = controllino_sec;
-        timestamp += controllino_min*60;
-        timestamp += controllino_hour*60*60;
+        timestamp += controllino_min*60ul;
+        timestamp += controllino_hour*60ul*60ul;
       #elif MOCK_CLOCK == 1
-        timestamp = millis()/10%(24*60*60);
-        if((timestamp/60/60) > timestamp_hour){
+        timestamp = millis()/10ul%(24ul*60ul*60ul);
+        if((timestamp/60ul/60ul) != timestamp_hour){
             timestamp_hour = timestamp/60/60;
             Serial.print(timestamp_hour);
             Serial.println(":00");
