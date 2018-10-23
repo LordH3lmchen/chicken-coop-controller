@@ -1,23 +1,23 @@
+#define DEBUG_OUTPUT 0
+/*
+* This disables the clock and mocks it with millis(), for testing purposes
+* it is usefull. 1 day runs in about 864s (14min and 24s)
+*/
+#define MOCK_CLOCK 0
+
 #include "MegunoLink.h"
 #include "CommandHandler.h"
 #include "EEPROMStore.h"
 #include "ArduinoTimer.h"
 #include "Controllino.h"
 
-#define DEBUG_OUTPUT 3
-/*
-* This disables the clock and mocks it with millis(), for testing purposes
-* it is usefull. 1 day runs in about 864s (14min and 24s)
-*/
-#define MOCK_CLOCK 1
-
 struct NestControllerConfiguration
 {
     int32_t NestOpenSunsetOffset;
     int32_t NestCloseSunsetOffset;
     void Reset() {
-        NestOpenSunsetOffset = 3l*60l*60l; // 3 hours after sunset
-        NestCloseSunsetOffset = -1*60l*60l; // 1 hour before sunset
+        NestOpenSunsetOffset = 5l*60l*60l; // 5 hours after sunset
+        NestCloseSunsetOffset = -1l*60l*60l; // 1 hour before sunset
     }
 };
 
@@ -195,8 +195,8 @@ void Cmd_SetDelays(CommandParameter &Parameters) {
 void Cmd_SetNestSunsetOffset(CommandParameter &Parameters) {
     int32_t offset0 = Parameters.NextParameterAsInteger(60);
     int32_t offset1 = Parameters.NextParameterAsInteger(60);
-    NestCfg.Data.NestOpenSunsetOffset = offset0*60ul;
-    NestCfg.Data.NestCloseSunsetOffset = offset1*60ul;
+    NestCfg.Data.NestOpenSunsetOffset = offset0*60l;
+    NestCfg.Data.NestCloseSunsetOffset = offset1*60l;
 }
 
 void UpdateOutputAO0() {
@@ -341,34 +341,51 @@ void UpdateLightOutputs(){
   UpdateOutputDO0();
 }
 
+void moveNest(uint8_t state){
+    digitalWrite(CONTROLLINO_R0, state);
+    #if DEBUG_OUTPUT == 3 || DEBUG_OUTPUT == 4
+      if(state == HIGH)
+        Serial.println(F("Nest is opening"));
+      if(state == LOW)
+        Serial.println(F("Nest is closing"));
+    #endif
+}
+
 void UpdateNestOutputs() { //HIGH == Nest UP; LOW == Nest Down;
-    if(timestamp >= LightCfg.Data.SunsetTime + NestCfg.Data.NestCloseSunsetOffset
-    && timestamp <= LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset) {
-        if(digitalRead(CONTROLLINO_R0) == HIGH) {
-            digitalWrite(CONTROLLINO_R0, LOW);
-            #if DEBUG_OUTPUT == 3 || DEBUG_OUTPUT == 4
-              Serial.println("Nest is closing");
-            #endif
+    uint32_t nestCloseTime = LightCfg.Data.SunsetTime + NestCfg.Data.NestCloseSunsetOffset;
+    uint32_t nestOpenTime = LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset;
+    if(nestCloseTime < nestOpenTime) {
+      if(timestamp > nestCloseTime && timestamp < nestOpenTime){
+        if(digitalRead(CONTROLLINO_R0) == HIGH){
+          moveNest(LOW);
         }
-    }
-    else {
-        if(digitalRead(CONTROLLINO_R0) == LOW) {
-            digitalWrite(CONTROLLINO_R0, HIGH);
-            #if DEBUG_OUTPUT == 3 || DEBUG_OUTPUT == 4
-              Serial.println("Nest is opening");
-            #endif
+      }
+      else {
+        if (digitalRead(CONTROLLINO_R0) == LOW) {
+          moveNest(HIGH);
         }
+      }
+    } else {
+      if(timestamp > nestOpenTime && timestamp < nestCloseTime) {
+        if(digitalRead(CONTROLLINO_R0) == LOW){
+          moveNest(HIGH);
+        }
+      }
+      else {
+        if (digitalRead(CONTROLLINO_R0) == HIGH){
+        moveNest(LOW);
+        }
+      }
     }
-    return;
 }
 
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
-  SerialCommandHandler.AddCommand(F("SetSunset"), Cmd_SetSunset);
-  SerialCommandHandler.AddCommand(F("SetClock"), Cmd_SetClock);
   SerialCommandHandler.AddCommand(F("GetClock"), Cmd_GetConfig);
   SerialCommandHandler.AddCommand(F("GetConfig"), Cmd_GetConfig);
+  SerialCommandHandler.AddCommand(F("SetSunset"), Cmd_SetSunset);
+  SerialCommandHandler.AddCommand(F("SetClock"), Cmd_SetClock);
   SerialCommandHandler.AddCommand(F("SetLightDuration"), Cmd_SetLightDuration);
   SerialCommandHandler.AddCommand(F("SetMaxBrightness"), Cmd_SetMaxBrightness);
   SerialCommandHandler.AddCommand(F("SetDelays"), Cmd_SetDelays);
@@ -403,7 +420,7 @@ void loop() {
         timestamp += controllino_min*60ul;
         timestamp += controllino_hour*60ul*60ul;
       #elif MOCK_CLOCK == 1
-        timestamp = millis()/10ul%(24ul*60ul*60ul);
+        timestamp = millis()/1ul%(24ul*60ul*60ul);
         if((timestamp/60ul/60ul) != timestamp_hour){
             timestamp_hour = timestamp/60/60;
             Serial.print(timestamp_hour);
