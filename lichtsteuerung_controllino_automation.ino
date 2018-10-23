@@ -1,9 +1,9 @@
-#define DEBUG_OUTPUT 0
+#define DEBUG_OUTPUT 2
 /*
 * This disables the clock and mocks it with millis(), for testing purposes
 * it is usefull. 1 day runs in about 864s (14min and 24s)
 */
-#define MOCK_CLOCK 0
+#define MOCK_CLOCK 1
 
 #include "MegunoLink.h"
 #include "CommandHandler.h"
@@ -55,6 +55,7 @@ struct LightControllerConfiguration
 
 uint32_t timestamp = 0ul;
 uint32_t sunriseTime;
+const uint32_t one_day = 24l*60l*60l;
 
 EEPROMStore<LightControllerConfiguration> LightCfg;
 EEPROMStore<NestControllerConfiguration> NestCfg;
@@ -69,7 +70,7 @@ void Cmd_SetSunset(CommandParameter &Parameters)
 {
   uint32_t ss_hour = Parameters.NextParameterAsInteger(19);
   uint32_t ss_minute = Parameters.NextParameterAsInteger(15);
-  LightCfg.Data.SunsetTime = ss_hour*60ul*60ul+ss_minute*60ul;
+  LightCfg.Data.SunsetTime = (ss_hour*60ul*60ul+ss_minute*60ul)%one_day;
   LightCfg.Save();
 }
 
@@ -79,9 +80,24 @@ void Cmd_SetLightDuration(CommandParameter &Parameters)
   uint32_t lightd_minutes = Parameters.NextParameterAsInteger(30);
   uint32_t sr_duration = Parameters.NextParameterAsInteger(30);
   uint32_t ss_duration = Parameters.NextParameterAsInteger(45);
-  LightCfg.Data.LightDuration = lightd_minutes*60ul+lightd_hours*60ul*60ul;
-  LightCfg.Data.SunriseDuration = sr_duration*60ul;
-  LightCfg.Data.SunsetDuration = ss_duration*60ul;
+  if(lightd_hours>15 || lightd_hours < 0 || lightd_minutes < 0 || lightd_minutes > 59){
+      Parameters.GetSource().println(F("Invalid light duration! "));
+      return;
+  } else {
+      LightCfg.Data.LightDuration = lightd_minutes*60ul+lightd_hours*60ul*60ul;
+  }
+  if(sr_duration < 15 || sr_duration > 120) {
+      Parameters.GetSource().println(F("Invalid sunrise duration! Durations between 15 and 120 minutes allowed!"));
+      return;
+  } else {
+      LightCfg.Data.SunriseDuration = sr_duration*60ul;
+  }
+  if(ss_duration < 15 || ss_duration > 120) {
+      Parameters.GetSource().println(F("Invalid sunset duration! Durations between 15 and 120 minutes allowed!"));
+      return;
+  } else {
+      LightCfg.Data.SunsetDuration = ss_duration*60ul;
+  }
   LightCfg.Save();
 }
 
@@ -203,8 +219,8 @@ void UpdateOutputAO0() {
   #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
     Serial.print(F("Channel 0 - "));
   #endif
-  if (timestamp >= sunriseTime+LightCfg.Data.SRDelayA0
-    && timestamp < sunriseTime+LightCfg.Data.SRDelayA0+LightCfg.Data.SunriseDuration) // if(sunrise)
+  if (timestamp >= (sunriseTime+LightCfg.Data.SRDelayA0)%one_day
+    && timestamp < (sunriseTime+LightCfg.Data.SRDelayA0+LightCfg.Data.SunriseDuration)%one_day) // if(sunrise)
   {
     int brightness = LightCfg.Data.MaxBrightness0*(timestamp-sunriseTime-LightCfg.Data.SRDelayA0)/LightCfg.Data.SunriseDuration;
     analogWrite(CONTROLLINO_AO0, brightness);
@@ -335,7 +351,7 @@ void UpdateOutputDO0() {
 
 
 void UpdateLightOutputs(){
-  sunriseTime = LightCfg.Data.SunsetTime-LightCfg.Data.LightDuration;
+  sunriseTime = (LightCfg.Data.SunsetTime-LightCfg.Data.LightDuration)%one_day;
   UpdateOutputAO0();
   UpdateOutputAO1();
   UpdateOutputDO0();
@@ -352,8 +368,8 @@ void moveNest(uint8_t state){
 }
 
 void UpdateNestOutputs() { //HIGH == Nest UP; LOW == Nest Down;
-    uint32_t nestCloseTime = LightCfg.Data.SunsetTime + NestCfg.Data.NestCloseSunsetOffset;
-    uint32_t nestOpenTime = LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset;
+    uint32_t nestCloseTime = (LightCfg.Data.SunsetTime + NestCfg.Data.NestCloseSunsetOffset)%one_day;
+    uint32_t nestOpenTime = (LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset)%one_day;
     if(nestCloseTime < nestOpenTime) {
       if(timestamp > nestCloseTime && timestamp < nestOpenTime){
         if(digitalRead(CONTROLLINO_R0) == HIGH){
@@ -420,7 +436,7 @@ void loop() {
         timestamp += controllino_min*60ul;
         timestamp += controllino_hour*60ul*60ul;
       #elif MOCK_CLOCK == 1
-        timestamp = millis()/1ul%(24ul*60ul*60ul);
+        timestamp = millis()/1ul%one_day;
         if((timestamp/60ul/60ul) != timestamp_hour){
             timestamp_hour = timestamp/60/60;
             Serial.print(timestamp_hour);
@@ -429,7 +445,7 @@ void loop() {
       #endif
       #if DEBUG_OUTPUT == 2 || DEBUG_OUTPUT == 4
         Serial.print("timestamp=");
-        Serial.print(timestamp);
+        Serial.println(timestamp);
       #endif
       UpdateLightOutputs();
       UpdateNestOutputs();
