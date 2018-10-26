@@ -1,9 +1,9 @@
-#define DEBUG_OUTPUT 2
+#define DEBUG_OUTPUT 0
 /*
 * This disables the clock and mocks it with millis(), for testing purposes
 * it is usefull. 1 day runs in about 864s (14min and 24s)
 */
-#define MOCK_CLOCK 1
+#define MOCK_CLOCK 0
 
 #include "MegunoLink.h"
 #include "CommandHandler.h"
@@ -37,7 +37,7 @@ struct LightControllerConfiguration
   uint32_t SRDelayA1;
   uint32_t SRDelayDO0;
   void Reset() {
-    SunsetTime = 16ul*60ul*60ul;
+    SunsetTime = 17ul*60ul*60ul;
     SunsetDuration = 60ul*60ul;
     SunriseDuration = 30ul*60ul;
     LightDuration = 10ul*60ul*60ul;
@@ -222,15 +222,15 @@ void UpdateOutputAO0() {
   if (timestamp >= (sunriseTime+LightCfg.Data.SRDelayA0)%one_day
     && timestamp < (sunriseTime+LightCfg.Data.SRDelayA0+LightCfg.Data.SunriseDuration)%one_day) // if(sunrise)
   {
-    int brightness = LightCfg.Data.MaxBrightness0*(timestamp-sunriseTime-LightCfg.Data.SRDelayA0)/LightCfg.Data.SunriseDuration;
+    int brightness = LightCfg.Data.MaxBrightness0*((timestamp-sunriseTime-LightCfg.Data.SRDelayA0)%one_day)/LightCfg.Data.SunriseDuration;
     analogWrite(CONTROLLINO_AO0, brightness);
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Sunrise: "));
       Serial.println(brightness);
     #endif
   }
-  else if (timestamp >= sunriseTime+LightCfg.Data.SRDelayA0+LightCfg.Data.SunriseDuration // if(day)
-    && timestamp < LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayA0)
+  else if ( timestamp >= (sunriseTime+LightCfg.Data.SRDelayA0+LightCfg.Data.SunriseDuration)%one_day // if(day)
+    && timestamp < (LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayA0)%one_day )
   {
     analogWrite(CONTROLLINO_AO0, LightCfg.Data.MaxBrightness0);
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
@@ -238,10 +238,10 @@ void UpdateOutputAO0() {
       Serial.println(LightCfg.Data.MaxBrightness0);
     #endif
   }
-  else if(timestamp >= LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayA0 &&
-    timestamp < LightCfg.Data.SunsetTime+LightCfg.Data.SunsetDuration+LightCfg.Data.SSDelayA0) // if(sunset)
+  else if(timestamp >= (LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayA0)%one_day
+    && timestamp < (LightCfg.Data.SunsetTime+LightCfg.Data.SunsetDuration+LightCfg.Data.SSDelayA0)%one_day ) // if(sunset)
   {
-    int brightness = LightCfg.Data.MaxBrightness0-(LightCfg.Data.MaxBrightness0*(timestamp-LightCfg.Data.SunsetTime-LightCfg.Data.SSDelayA0)/LightCfg.Data.SunsetDuration);
+    int brightness = LightCfg.Data.MaxBrightness0-(LightCfg.Data.MaxBrightness0*((timestamp-LightCfg.Data.SunsetTime-LightCfg.Data.SSDelayA0)%one_day)/LightCfg.Data.SunsetDuration);
     analogWrite(CONTROLLINO_AO0, brightness);
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Sunset:  "));
@@ -263,18 +263,18 @@ void UpdateOutputAO1() {
   #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
     Serial.print(F("Channel 1 - "));
   #endif
-  if (timestamp >= sunriseTime+LightCfg.Data.SRDelayA1
-    && timestamp < sunriseTime+LightCfg.Data.SRDelayA1+LightCfg.Data.SunriseDuration) // if(sunrise)
+  if (timestamp >= (sunriseTime+LightCfg.Data.SRDelayA1)%one_day
+    && timestamp < (sunriseTime+LightCfg.Data.SRDelayA1+LightCfg.Data.SunriseDuration)%one_day ) // if(sunrise)
   {
-    int brightness = LightCfg.Data.MaxBrightness1*(timestamp-sunriseTime-LightCfg.Data.SRDelayA1)/LightCfg.Data.SunriseDuration;
+    int brightness = LightCfg.Data.MaxBrightness1*((timestamp-sunriseTime-LightCfg.Data.SRDelayA1)%one_day)/LightCfg.Data.SunriseDuration;
     analogWrite(CONTROLLINO_AO1, brightness);
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Sunrise: "));
       Serial.println(brightness);
     #endif
   }
-  else if (timestamp >= sunriseTime+LightCfg.Data.SRDelayA1+LightCfg.Data.SunriseDuration // if(day)
-    && timestamp < LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayA1)
+  else if (timestamp >= (sunriseTime+LightCfg.Data.SRDelayA1+LightCfg.Data.SunriseDuration)%one_day // if(day)
+    && timestamp < (LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayA1)%one_day )
   {
     analogWrite(CONTROLLINO_AO1, LightCfg.Data.MaxBrightness1);
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
@@ -282,10 +282,10 @@ void UpdateOutputAO1() {
       Serial.println(LightCfg.Data.MaxBrightness1);
     #endif
   }
-  else if(timestamp >= LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayA1 &&
-    timestamp < LightCfg.Data.SunsetTime+LightCfg.Data.SunsetDuration+LightCfg.Data.SSDelayA1) // if(sunset)
+  else if(timestamp >= (LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayA1)%one_day
+    && timestamp < (LightCfg.Data.SunsetTime+LightCfg.Data.SunsetDuration+LightCfg.Data.SSDelayA1)%one_day ) // if(sunset)
   {
-    int brightness = LightCfg.Data.MaxBrightness1-(LightCfg.Data.MaxBrightness1*(timestamp-LightCfg.Data.SunsetTime-LightCfg.Data.SSDelayA1)/LightCfg.Data.SunsetDuration);
+    int brightness = LightCfg.Data.MaxBrightness1-(LightCfg.Data.MaxBrightness1*((timestamp-LightCfg.Data.SunsetTime-LightCfg.Data.SSDelayA1)%one_day)/LightCfg.Data.SunsetDuration);
     analogWrite(CONTROLLINO_AO1, brightness);
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Sunset:  "));
@@ -306,10 +306,10 @@ void UpdateOutputDO0() {
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Channel 2 - "));
     #endif
-  if (timestamp >= sunriseTime+LightCfg.Data.SRDelayDO0
-    && timestamp < sunriseTime+LightCfg.Data.SRDelayDO0+LightCfg.Data.SunriseDuration) // if(sunrise)
+  if (timestamp >= (sunriseTime+LightCfg.Data.SRDelayDO0)%one_day
+    && timestamp < (sunriseTime+LightCfg.Data.SRDelayDO0+LightCfg.Data.SunriseDuration)%one_day ) // if(sunrise)
   {
-    int brightness = LightCfg.Data.MaxBrightness2*(timestamp-sunriseTime-LightCfg.Data.SRDelayDO0)/LightCfg.Data.SunriseDuration;
+    int brightness = LightCfg.Data.MaxBrightness2*((timestamp-sunriseTime-LightCfg.Data.SRDelayDO0)%one_day)/LightCfg.Data.SunriseDuration;
     //analogWrite(CONTROLLINO_DO7, brightness);
     digitalWrite(CONTROLLINO_R9, LOW);
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
@@ -317,8 +317,8 @@ void UpdateOutputDO0() {
       Serial.println(brightness);
     #endif
   }
-  else if (timestamp >= sunriseTime+LightCfg.Data.SRDelayDO0+LightCfg.Data.SunriseDuration // if(day)
-    && timestamp < LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayDO0)
+  else if (timestamp >= (sunriseTime+LightCfg.Data.SRDelayDO0+LightCfg.Data.SunriseDuration)%one_day // if(day)
+    && timestamp < (LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayDO0)%one_day )
   {
     //analogWrite(CONTROLLINO_DO7, LightCfg.Data.MaxBrightness2);
     digitalWrite(CONTROLLINO_R9, HIGH);
@@ -327,10 +327,10 @@ void UpdateOutputDO0() {
       Serial.println(LightCfg.Data.MaxBrightness2);
     #endif
   }
-  else if(timestamp >= LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayDO0 &&
-    timestamp < LightCfg.Data.SunsetTime+LightCfg.Data.SunsetDuration+LightCfg.Data.SSDelayDO0) // if(sunset)
+  else if(timestamp >= (LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayDO0)%one_day
+    && timestamp < (LightCfg.Data.SunsetTime+LightCfg.Data.SunsetDuration+LightCfg.Data.SSDelayDO0)%one_day ) // if(sunset)
   {
-    int brightness = LightCfg.Data.MaxBrightness2-(LightCfg.Data.MaxBrightness2*(timestamp-LightCfg.Data.SunsetTime-LightCfg.Data.SSDelayDO0)/LightCfg.Data.SunsetDuration);
+    int brightness = LightCfg.Data.MaxBrightness2-(LightCfg.Data.MaxBrightness2*((timestamp-LightCfg.Data.SunsetTime-LightCfg.Data.SSDelayDO0)%one_day)/LightCfg.Data.SunsetDuration);
     //analogWrite(CONTROLLINO_DO7, brightness);
     digitalWrite(CONTROLLINO_R9, LOW);
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
