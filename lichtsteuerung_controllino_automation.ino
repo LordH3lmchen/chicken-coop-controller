@@ -59,7 +59,8 @@ const uint32_t one_day = 24l*60l*60l;
 
 EEPROMStore<LightControllerConfiguration> LightCfg;
 EEPROMStore<NestControllerConfiguration> NestCfg;
-CommandHandler<12, 35, 7> SerialCommandHandler;
+//CommandHandler<12, 35, 7> SerialCommandHandler(Serial1,'#',';');
+CommandHandler<12, 35, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
 
 #if MOCK_CLOCK
