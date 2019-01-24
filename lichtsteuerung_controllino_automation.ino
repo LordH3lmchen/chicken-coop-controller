@@ -17,7 +17,7 @@ struct NestControllerConfiguration
     int32_t NestCloseSunsetOffset;
     void Reset() {
         NestOpenSunsetOffset = 5l*60l*60l; // 5 hours after sunset
-        NestCloseSunsetOffset = -1l*60l*60l; // 1 hour before sunset
+        NestCloseSunsetOffset = 0l*60l*60l; // 0 hour before sunset
     }
 };
 
@@ -38,12 +38,12 @@ struct LightControllerConfiguration
   uint32_t SRDelayDO0;
   void Reset() {
     SunsetTime = 17ul*60ul*60ul;
-    SunsetDuration = 60ul*60ul;
+    SunsetDuration = 75ul*60ul;
     SunriseDuration = 30ul*60ul;
-    LightDuration = 10ul*60ul*60ul;
-    MaxBrightness0 = 178;
-    MaxBrightness1 = 178;
-    MaxBrightness2 = 53;
+    LightDuration = 14ul*60ul*60ul;
+    MaxBrightness0 = 229;
+    MaxBrightness1 = 229;
+    MaxBrightness2 = 95;
     SSDelayA0 = 0ul;
     SSDelayA1 = 10ul*60ul;
     SSDelayDO0 = 20ul*60ul;
@@ -59,7 +59,7 @@ const uint32_t one_day = 24l*60l*60l;
 
 EEPROMStore<LightControllerConfiguration> LightCfg;
 EEPROMStore<NestControllerConfiguration> NestCfg;
-//CommandHandler<12, 35, 7> SerialCommandHandler(Serial1,'#',';');
+//CommandHandler<12, 35, 7> SerialCommandHandler(Serial,'#',';');
 CommandHandler<12, 35, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
 
@@ -108,11 +108,13 @@ void Cmd_SetMaxBrightness(CommandParameter &Parameters)
   int user_p1 = Parameters.NextParameterAsInteger(178);
   int user_p2 = Parameters.NextParameterAsInteger(53);
   if(user_p0<0 || user_p0 > 100) {
-    Parameters.GetSource().println(F("First parameter out of range (values between 0 and 100 are allowed). Default Value of 75 is used"));
+    Parameters.GetSource().
+    	println(F("First parameter out of range (values between 0 and 100 are allowed). Default Value of 75 is used"));
     user_p0 = 75;
   }
   if(user_p1<0 || user_p1 > 100) {
-    Parameters.GetSource().println(F("Second parameter out of range (values between 0 and 100 are allowed). Default Value of 75 is used"));
+    Parameters.GetSource().
+    	println(F("Second parameter out of range (values between 0 and 100 are allowed). Default Value of 75 is used"));
     user_p1 = 75;
   }
   if(user_p2<0 || user_p2 > 100) {
@@ -214,6 +216,7 @@ void Cmd_SetNestSunsetOffset(CommandParameter &Parameters) {
     int32_t offset1 = Parameters.NextParameterAsInteger(60);
     NestCfg.Data.NestOpenSunsetOffset = offset0*60l;
     NestCfg.Data.NestCloseSunsetOffset = offset1*60l;
+    NestCfg.Save();
 }
 
 void UpdateOutputAO0() {
