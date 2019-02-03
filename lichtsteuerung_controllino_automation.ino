@@ -326,7 +326,7 @@ void UpdateOutputDO0() {
     && timestamp < (sunriseTime+LightCfg.Data.SRDelayDO0+LightCfg.Data.SunriseDuration)%one_day ) // if(sunrise)
   {
     int brightness = LightCfg.Data.MaxBrightness2*((timestamp-sunriseTime-LightCfg.Data.SRDelayDO0)%one_day)/LightCfg.Data.SunriseDuration;
-    //analogWrite(LIGHT_ANALOG_OUT_2, brightness);
+    //analogWrite(LIGHT_ANALOG_OUT_2, brightness); 
     digitalWrite(LIGHT_DIGITAL_OUT_0, LOW);
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Sunrise: "));
@@ -374,7 +374,7 @@ void UpdateLightOutputs(){
 }
 
 void moveNest(uint8_t state){
-    digitalWrite(CONTROLLINO_R0, state);
+    digitalWrite(NEST_DIGITAL_OUT, state);
     #if DEBUG_OUTPUT == 3 || DEBUG_OUTPUT == 4
       if(state == HIGH)
         Serial.println(F("Nest is opening"));
@@ -388,23 +388,23 @@ void UpdateNestOutputs() { //HIGH == Nest UP; LOW == Nest Down;
     uint32_t nestOpenTime = (LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset)%one_day;
     if(nestCloseTime < nestOpenTime) {
       if(timestamp > nestCloseTime && timestamp < nestOpenTime){
-        if(digitalRead(CONTROLLINO_R0) == HIGH){
+        if(digitalRead(NEST_DIGITAL_OUT) == HIGH){
           moveNest(LOW);
         }
       }
       else {
-        if (digitalRead(CONTROLLINO_R0) == LOW) {
+        if (digitalRead(NEST_DIGITAL_OUT) == LOW) {
           moveNest(HIGH);
         }
       }
     } else {
       if(timestamp > nestOpenTime && timestamp < nestCloseTime) {
-        if(digitalRead(CONTROLLINO_R0) == LOW){
+        if(digitalRead(NEST_DIGITAL_OUT) == LOW){
           moveNest(HIGH);
         }
       }
       else {
-        if (digitalRead(CONTROLLINO_R0) == HIGH){
+        if (digitalRead(NEST_DIGITAL_OUT) == HIGH){
         moveNest(LOW);
         }
       }
@@ -430,9 +430,9 @@ void setup() {
   pinMode(LIGHT_ANALOG_OUT_1, OUTPUT);
   pinMode(LIGHT_ANALOG_OUT_2, OUTPUT);
   pinMode(LIGHT_DIGITAL_OUT_0, OUTPUT);
-  pinMode(CONTROLLINO_R0, OUTPUT);
+  pinMode(NEST_DIGITAL_OUT, OUTPUT);
 
-  digitalWrite(CONTROLLINO_R0, HIGH);
+  digitalWrite(NEST_DIGITAL_OUT, HIGH);
 }
 
 void loop() {
