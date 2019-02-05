@@ -226,34 +226,34 @@ void Cmd_SetNestSunsetOffset(CommandParameter &Parameters) {
     NestCfg.Save();
 }
 
-void UpdateOutputAO0() {
+void UpdateLightAO(uint32_t srDelay, uint32_t ssDelay, int maxBrightness, int arduinoPin) {
   #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
     Serial.print(F("Channel 0 - "));
   #endif
-  if (timestamp >= (sunriseTime+LightCfg.Data.SRDelayA0)%one_day
-    && timestamp < (sunriseTime+LightCfg.Data.SRDelayA0+LightCfg.Data.SunriseDuration)%one_day) // if(sunrise)
+  if (timestamp >= (sunriseTime+srDelay)%one_day
+    && timestamp < (sunriseTime+srDelay+LightCfg.Data.SunriseDuration)%one_day) // if(sunrise)
   {
-    int brightness = LightCfg.Data.MaxBrightness0*((timestamp-sunriseTime-LightCfg.Data.SRDelayA0)%one_day)/LightCfg.Data.SunriseDuration;
-    analogWrite(LIGHT_ANALOG_OUT_0, brightness);
+    int brightness = maxBrightness*((timestamp-sunriseTime-srDelay)%one_day)/LightCfg.Data.SunriseDuration;
+    analogWrite(arduinoPin, brightness);
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Sunrise: "));
       Serial.println(brightness);
     #endif
   }
-  else if ( timestamp >= (sunriseTime+LightCfg.Data.SRDelayA0+LightCfg.Data.SunriseDuration)%one_day // if(day)
-    && timestamp < (LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayA0)%one_day )
+  else if ( timestamp >= (sunriseTime+srDelay+LightCfg.Data.SunriseDuration)%one_day // if(day)
+    && timestamp < (LightCfg.Data.SunsetTime+ssDelay)%one_day )
   {
-    analogWrite(LIGHT_ANALOG_OUT_0, LightCfg.Data.MaxBrightness0);
+    analogWrite(arduinoPin, maxBrightness);
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Day:     "));
-      Serial.println(LightCfg.Data.MaxBrightness0);
+      Serial.println(maxBrightness);
     #endif
   }
-  else if(timestamp >= (LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayA0)%one_day
-    && timestamp < (LightCfg.Data.SunsetTime+LightCfg.Data.SunsetDuration+LightCfg.Data.SSDelayA0)%one_day ) // if(sunset)
+  else if(timestamp >= (LightCfg.Data.SunsetTime+ssDelay)%one_day
+    && timestamp < (LightCfg.Data.SunsetTime+LightCfg.Data.SunsetDuration+ssDelay)%one_day ) // if(sunset)
   {
-    int brightness = LightCfg.Data.MaxBrightness0-(LightCfg.Data.MaxBrightness0*((timestamp-LightCfg.Data.SunsetTime-LightCfg.Data.SSDelayA0)%one_day)/LightCfg.Data.SunsetDuration);
-    analogWrite(LIGHT_ANALOG_OUT_0, brightness);
+    int brightness = maxBrightness-(maxBrightness*((timestamp-LightCfg.Data.SunsetTime-ssDelay)%one_day)/LightCfg.Data.SunsetDuration);
+    analogWrite(arduinoPin, brightness);
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Sunset:  "));
       Serial.println(brightness);
@@ -261,51 +261,7 @@ void UpdateOutputAO0() {
   }
   else
   {
-    analogWrite(LIGHT_ANALOG_OUT_0, 0);
-    #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
-      Serial.print(F("Night:    "));
-      Serial.println(0);
-    #endif
-  }
-}
-
-
-void UpdateOutputAO1() {
-  #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
-    Serial.print(F("Channel 1 - "));
-  #endif
-  if (timestamp >= (sunriseTime+LightCfg.Data.SRDelayA1)%one_day
-    && timestamp < (sunriseTime+LightCfg.Data.SRDelayA1+LightCfg.Data.SunriseDuration)%one_day ) // if(sunrise)
-  {
-    int brightness = LightCfg.Data.MaxBrightness1*((timestamp-sunriseTime-LightCfg.Data.SRDelayA1)%one_day)/LightCfg.Data.SunriseDuration;
-    analogWrite(LIGHT_ANALOG_OUT_1, brightness);
-    #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
-      Serial.print(F("Sunrise: "));
-      Serial.println(brightness);
-    #endif
-  }
-  else if (timestamp >= (sunriseTime+LightCfg.Data.SRDelayA1+LightCfg.Data.SunriseDuration)%one_day // if(day)
-    && timestamp < (LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayA1)%one_day )
-  {
-    analogWrite(LIGHT_ANALOG_OUT_1, LightCfg.Data.MaxBrightness1);
-    #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
-      Serial.print(F("Day:     "));
-      Serial.println(LightCfg.Data.MaxBrightness1);
-    #endif
-  }
-  else if(timestamp >= (LightCfg.Data.SunsetTime+LightCfg.Data.SSDelayA1)%one_day
-    && timestamp < (LightCfg.Data.SunsetTime+LightCfg.Data.SunsetDuration+LightCfg.Data.SSDelayA1)%one_day ) // if(sunset)
-  {
-    int brightness = LightCfg.Data.MaxBrightness1-(LightCfg.Data.MaxBrightness1*((timestamp-LightCfg.Data.SunsetTime-LightCfg.Data.SSDelayA1)%one_day)/LightCfg.Data.SunsetDuration);
-    analogWrite(LIGHT_ANALOG_OUT_1, brightness);
-    #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
-      Serial.print(F("Sunset:  "));
-      Serial.println(brightness);
-    #endif
-  }
-  else
-  {
-    analogWrite(LIGHT_ANALOG_OUT_1, 0);
+    analogWrite(arduinoPin, 0);
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Night:    "));
       Serial.println(0);
@@ -318,7 +274,7 @@ void UpdateOutputAO1() {
 * There was no analog outpout left on the PLC. This is the reason why there is 
 * only a DIGITAL Write used. Fix this on a diffrent PLC 
 */
-void UpdateOutputDO0() {
+void UpdateLightDO0() {
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Channel 2 - "));
     #endif
@@ -368,9 +324,10 @@ void UpdateOutputDO0() {
 
 void UpdateLightOutputs(){
   sunriseTime = (LightCfg.Data.SunsetTime-LightCfg.Data.LightDuration)%one_day;
-  UpdateOutputAO0();
-  UpdateOutputAO1();
-  UpdateOutputDO0();
+  UpdateLightAO(LightCfg.Data.SRDelayA0, LightCfg.Data.SSDelayA0, LightCfg.Data.MaxBrightness0, LIGHT_ANALOG_OUT_0);
+  UpdateLightAO(LightCfg.Data.SRDelayA1, LightCfg.Data.SSDelayA1, LightCfg.Data.MaxBrightness1, LIGHT_ANALOG_OUT_1);
+  //UpdateLightAO(LightCfg.Data.SRDelayA2, LightCfg.Data.SSDelayA2, LightCfg.Data.MaxBrightness2, LIGHT_ANALOG_OUT_2); //TODO add Digital, Feature
+  UpdateLightDO0();
 }
 
 void moveNest(uint8_t state){
