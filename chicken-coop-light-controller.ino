@@ -13,7 +13,6 @@
 #include "CommandHandler.h"
 #include "EEPROMStore.h"
 #include "ArduinoTimer.h"
-#include "Controllino.h"
 
 #include "Configuration.h"
 
