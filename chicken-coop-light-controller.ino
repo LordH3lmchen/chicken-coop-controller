@@ -1,6 +1,6 @@
 /*
 * Changes the DEBUG Output.
-* Right now it is a integer that represents a Level. 
+* Right now it is a integer that represents a Level.
 */
 #define DEBUG_OUTPUT 0
 /*
@@ -218,8 +218,8 @@ void Cmd_SetDelays(CommandParameter &Parameters) {
 }
 
 void Cmd_SetNestSunsetOffset(CommandParameter &Parameters) {
-    int32_t offset0 = Parameters.NextParameterAsInteger(60);
-    int32_t offset1 = Parameters.NextParameterAsInteger(60);
+    int32_t offset0 = Parameters.NextParameterAsInteger(5*60);
+    int32_t offset1 = Parameters.NextParameterAsInteger(0);
     NestCfg.Data.NestOpenSunsetOffset = offset0*60l;
     NestCfg.Data.NestCloseSunsetOffset = offset1*60l;
     NestCfg.Save();
