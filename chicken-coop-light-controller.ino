@@ -58,6 +58,7 @@ struct LightControllerConfiguration
   }
 };
 
+
 uint32_t timestamp = 0ul;
 uint32_t sunriseTime;
 const uint32_t one_day = 24l*60l*60l;
@@ -84,27 +85,37 @@ void Cmd_SetLightDuration(CommandParameter &Parameters)
 {
   uint32_t lightd_hours = Parameters.NextParameterAsInteger(9);
   uint32_t lightd_minutes = Parameters.NextParameterAsInteger(30);
-  uint32_t sr_duration = Parameters.NextParameterAsInteger(30);
-  uint32_t ss_duration = Parameters.NextParameterAsInteger(45);
   if(lightd_hours>15 || lightd_hours < 0 || lightd_minutes < 0 || lightd_minutes > 59){
       Parameters.GetSource().println(F("Invalid light duration! "));
       return;
   } else {
       LightCfg.Data.LightDuration = lightd_minutes*60ul+lightd_hours*60ul*60ul;
+      LightCfg.Save();
   }
+}
+
+void Cmd_SetSunriseDuration(CommandParameter &Parameters)
+{
+  uint32_t sr_duration = Parameters.NextParameterAsInteger(30);
   if(sr_duration < 15 || sr_duration > 120) {
       Parameters.GetSource().println(F("Invalid sunrise duration! Durations between 15 and 120 minutes allowed!"));
       return;
   } else {
       LightCfg.Data.SunriseDuration = sr_duration*60ul;
+      LightCfg.Save();
   }
+}
+
+void Cmd_SetSunsetDuration(CommandParameter &Parameters)
+{
+  uint32_t ss_duration = Parameters.NextParameterAsInteger(45);
   if(ss_duration < 15 || ss_duration > 120) {
       Parameters.GetSource().println(F("Invalid sunset duration! Durations between 15 and 120 minutes allowed!"));
       return;
   } else {
       LightCfg.Data.SunsetDuration = ss_duration*60ul;
+      LightCfg.Save();
   }
-  LightCfg.Save();
 }
 
 void Cmd_SetMaxBrightness(CommandParameter &Parameters)
@@ -130,6 +141,32 @@ void Cmd_SetMaxBrightness(CommandParameter &Parameters)
   LightCfg.Data.MaxBrightness0 = user_p0*255/100;
   LightCfg.Data.MaxBrightness1 = user_p1*255/100;
   LightCfg.Data.MaxBrightness2 = user_p2*106/100;
+  LightCfg.Save();
+}
+
+void Cmd_SetMaxBrightnessForChannel(CommandParameter &Parameters)
+{
+  int value = Parameters.NextParameterAsInteger(178);
+  int channelNr = Parameters.NextParameterAsInteger(0);
+  if(value<0 || value > 100) {
+    Parameters.GetSource().
+    	println(F("First parameter out of range (values between 0 and 100 are allowed). Default Value of 75 is used"));
+    value = 75;
+  }
+  if(channelNr<0 || channelNr > 2) {
+    Parameters.GetSource().
+    	println(F("Channel parameter out of range (values between 0 and 2 are allowed). "));
+    channelNr = 0;
+  }
+  if(channelNr == 0) {
+      LightCfg.Data.MaxBrightness0 = value*255/100;
+  } else if(channelNr == 1) {
+      LightCfg.Data.MaxBrightness1 = value*255/100;
+  } else if(channelNr == 2) {
+      LightCfg.Data.MaxBrightness2 = value*106/100; // diffrent ADC that creates a voltage between 0-24V
+  } else {
+      Parameters.GetSource().println(F("invalid channel"));
+  }
   LightCfg.Save();
 }
 
@@ -339,7 +376,10 @@ void setup() {
   SerialCommandHandler.AddCommand(F("SetSunset"), Cmd_SetSunset);
   SerialCommandHandler.AddCommand(F("SetClock"), Cmd_SetClock);
   SerialCommandHandler.AddCommand(F("SetLightDuration"), Cmd_SetLightDuration);
+  SerialCommandHandler.AddCommand(F("SetSunriseDuration"), Cmd_SetSunriseDuration);
+  SerialCommandHandler.AddCommand(F("SetSunsetDuration"), Cmd_SetSunsetDuration);
   SerialCommandHandler.AddCommand(F("SetMaxBrightness"), Cmd_SetMaxBrightness);
+  SerialCommandHandler.AddCommand(F("SetMaxBrightnessForChannel"), Cmd_SetMaxBrightnessForChannel);
   SerialCommandHandler.AddCommand(F("SetDelays"), Cmd_SetDelays);
   SerialCommandHandler.AddCommand(F("SetNestOffset"), Cmd_SetNestSunsetOffset);
   Controllino_RTC_init(0);

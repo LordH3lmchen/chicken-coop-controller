@@ -75,14 +75,29 @@ SetClock [day] [weekday] [month] [year] [hour] [minute] [second]
 ```
 
 
-This sets the Light duration to the given values in minutes (integer)
+This sets the light duration to the given values in minutes (integer)
 ```
-SetLightDuration [hours] [minutes] [sunrise] [sunset]
+SetLightDuration [hours] [minutes]
+```
+
+This sets the sunset duration to the given values in minutes (integer)
+```
+SetSunsetDuration [minutes]
+```
+
+This sets the sunrise duration to the given values in minutes (integer)
+```
+SetSunriseDuration [minutes]
 ```
 
 To define the max brightness you have to specifie an integer between 0 and 100 for each channel
 ```
 SetMaxBrightness [brightness ch1] [brightness ch2] [brightness ch3]
+```
+
+To define the max brightness you have to specifie an integer between 0 and 100 for the given channel (0-2)
+```
+SetMaxBrightness [brightness value] [channel number]
 ```
 
 ```
