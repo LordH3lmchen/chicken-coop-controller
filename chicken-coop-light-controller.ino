@@ -13,8 +13,7 @@
 #include "CommandHandler.h"
 #include "EEPROMStore.h"
 #include "ArduinoTimer.h"
-
-#include "Configuration.h"
+#include "Configuration_Controllino_Maxi.h"
 
 struct NestControllerConfiguration
 {
@@ -58,20 +57,42 @@ struct LightControllerConfiguration
   }
 };
 
+struct WaterControllerConfiguration
+{
+    unsigned long WaterFlushDuration;
+    void Reset() {
+        WaterFlushDuration = 1ul*60ul*1000ul; // 1 Minutes
+    }
+};
+
 
 uint32_t timestamp = 0ul;
 uint32_t sunriseTime;
-const uint32_t one_day = 24l*60l*60l;
+const uint32_t one_day = 24ul*60ul*60ul;
+int waterBtnRead = 0;
+unsigned long waterBtnPressedTime = 0;
 
 EEPROMStore<LightControllerConfiguration> LightCfg;
 EEPROMStore<NestControllerConfiguration> NestCfg;
+EEPROMStore<WaterControllerConfiguration> WaterCfg;
 //CommandHandler<12, 35, 7> SerialCommandHandler(Serial,'#',';');
-CommandHandler<12, 35, 7> SerialCommandHandler(Serial,'#',';');
+CommandHandler<13, 35, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
 
 #if MOCK_CLOCK
   unsigned int timestamp_hour = 0;
 #endif
+
+
+void Cmd_SetWaterFlushDuration(CommandParameter &Parameters) {
+  uint32_t water_fd = Parameters.NextParameterAsInteger(10); //duration in minutes
+  WaterCfg.Data.WaterFlushDuration = water_fd*60ul*1000ul;
+}
+
+void Cmd_GetWaterFlushDuration(CommandParameter &Parameters) {
+  Parameters.GetSource().print(WaterCfg.Data.WaterFlushDuration/(60ul*1000ul));
+  Parameters.GetSource().println(F(" minutes"));
+}
 
 void Cmd_SetSunset(CommandParameter &Parameters)
 {
@@ -242,6 +263,25 @@ void Cmd_GetConfig(CommandParameter &Parameters)
   Parameters.GetSource().println(LightCfg.Data.MaxBrightness1);
   Parameters.GetSource().print(F("Light MaxBrightness2="));
   Parameters.GetSource().println(LightCfg.Data.MaxBrightness2);
+  Parameters.GetSource().print(F("Light SunSetDelayA0="));
+  Parameters.GetSource().print(LightCfg.Data.SSDelayA0/60ul);
+  Parameters.GetSource().println(F(" minutes"));
+  Parameters.GetSource().print(F("Light SunSetDelayA1="));
+  Parameters.GetSource().print(LightCfg.Data.SSDelayA1/60ul);
+  Parameters.GetSource().println(F(" minutes"));
+  Parameters.GetSource().print(F("Light SunSetDelayDO0="));
+  Parameters.GetSource().print(LightCfg.Data.SSDelayDO0/60ul);
+  Parameters.GetSource().println(F(" minutes"));
+  Parameters.GetSource().print(F("Light SunRiseDelayA0="));
+  Parameters.GetSource().print(LightCfg.Data.SRDelayA0/60ul);
+  Parameters.GetSource().println(F(" minutes"));
+  Parameters.GetSource().print(F("Light SunRiseDelayA1="));
+  Parameters.GetSource().print(LightCfg.Data.SRDelayA1/60ul);
+  Parameters.GetSource().println(F(" minutes"));
+  Parameters.GetSource().print(F("Light SunRiseDelayDO0="));
+  Parameters.GetSource().print(LightCfg.Data.SRDelayDO0/60ul);
+  Parameters.GetSource().println(F(" minutes"));
+
 }
 
 void Cmd_SetDelays(CommandParameter &Parameters) {
@@ -265,7 +305,7 @@ void Cmd_SetSSDelays(CommandParameter &Parameters) {
   if(channelNr == 0) {
       LightCfg.Data.SSDelayA0 = value*60ul;
   } else if(channelNr == 1) {
-      LightCfg.Data.SSDelayA1 = vakue*60ul;
+      LightCfg.Data.SSDelayA1 = value*60ul;
   } else if(channelNr == 2) {
       LightCfg.Data.SSDelayDO0 = value*60ul;
   } else {
@@ -285,7 +325,7 @@ void Cmd_SetSRDelays(CommandParameter &Parameters) {
     if(channelNr == 0) {
         LightCfg.Data.SRDelayA0 = value*60ul;
     } else if(channelNr == 1) {
-        LightCfg.Data.SRDelayA1 = vakue*60ul;
+        LightCfg.Data.SRDelayA1 = value*60ul;
     } else if(channelNr == 2) {
         LightCfg.Data.SRDelayDO0 = value*60ul;
     } else {
@@ -408,6 +448,42 @@ void UpdateNestOutputs() { //HIGH == Nest UP; LOW == Nest Down;
     }
 }
 
+void UpdateWaterOutputs() {
+  int currentBtnInput = digitalRead(WATER_BTN);
+  if(waterBtnRead != currentBtnInput) {
+    if(currentBtnInput == HIGH) {
+      #if DEBUG_OUTPUT == 3
+        Serial.println("WaterFlush Btn pressed!");
+      #endif
+      waterBtnPressedTime = millis();
+      if(digitalRead(WATER_VALVE) == HIGH) {
+        digitalWrite(WATER_VALVE, LOW);
+      } 
+      else {
+        digitalWrite(WATER_VALVE, HIGH);
+      }
+    } 
+    #if DEBUG_OUTPUT == 3
+    else {
+       Serial.println("WaterFlush Btn released!");
+    }
+    #endif
+    waterBtnRead = currentBtnInput;
+  }
+  if( ( currentBtnInput == HIGH ) && ( waterBtnPressedTime+3000 < millis() ) ) {
+    #if DEBUG_OUTPUT == 3
+      Serial.println("long press of WaterBtn");
+    #endif
+  }
+  if( waterBtnPressedTime + WaterCfg.Data.WaterFlushDuration < millis() ) {
+    #if DEBUG_OUTPUT == 3
+      Serial.println(waterBtnPressedTime + WaterCfg.Data.WaterFlushDuration);
+      Serial.println(millis());
+    #endif
+    digitalWrite(WATER_VALVE, LOW);
+  }
+}
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
@@ -422,17 +498,26 @@ void setup() {
   SerialCommandHandler.AddCommand(F("SetMaxBrightnessForChannel"), Cmd_SetMaxBrightnessForChannel);
   SerialCommandHandler.AddCommand(F("SetDelays"), Cmd_SetDelays);
   SerialCommandHandler.AddCommand(F("SetNestOffset"), Cmd_SetNestSunsetOffset);
+  SerialCommandHandler.AddCommand(F("SetWaterFlushDuration"), Cmd_SetWaterFlushDuration);
+  SerialCommandHandler.AddCommand(F("GetWaterFlushDuration"), Cmd_GetWaterFlushDuration);
+
   Controllino_RTC_init(0);
   LightCfg.Load();
   NestCfg.Load();
+  WaterCfg.Load();
 
   pinMode(LIGHT_ANALOG_OUT_0, OUTPUT);
   pinMode(LIGHT_ANALOG_OUT_1, OUTPUT);
   pinMode(LIGHT_ANALOG_OUT_2, OUTPUT);
   pinMode(LIGHT_DIGITAL_OUT_0, OUTPUT);
   pinMode(NEST_DIGITAL_OUT, OUTPUT);
+  pinMode(WATER_VALVE, OUTPUT);
+  pinMode(WATER_BTN, INPUT);
 
   digitalWrite(NEST_DIGITAL_OUT, HIGH);
+  digitalWrite(WATER_VALVE, LOW);
+
+  Serial.println("chicken-coop-light-controller-v0.01");
 }
 
 void loop() {
@@ -442,7 +527,7 @@ void loop() {
   #elif DEBUG_OUTPUT == 2 || DEBUG_OUTPUT == 1
     if(UpdateAoTimer.TimePassed_Milliseconds(3000)){ //slow down in debug mode 1 or 2
   #else
-    if(UpdateAoTimer.TimePassed_Milliseconds(200)){ //faster in production
+    if(UpdateAoTimer.TimePassed_Milliseconds(100)){ //faster in production
   #endif
       uint32_t controllino_sec = Controllino_GetSecond();
       uint32_t controllino_min = Controllino_GetMinute();
@@ -465,5 +550,6 @@ void loop() {
       #endif
       UpdateLightOutputs();
       UpdateNestOutputs();
+      UpdateWaterOutputs();
     }
 }
