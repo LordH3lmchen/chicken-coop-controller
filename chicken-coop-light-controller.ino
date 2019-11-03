@@ -87,6 +87,7 @@ ArduinoTimer UpdateAoTimer;
 void Cmd_SetWaterFlushDuration(CommandParameter &Parameters) {
   uint32_t water_fd = Parameters.NextParameterAsInteger(10); //duration in minutes
   WaterCfg.Data.WaterFlushDuration = water_fd*60ul*1000ul;
+  WaterCfg.Save();
 }
 
 void Cmd_GetWaterFlushDuration(CommandParameter &Parameters) {
