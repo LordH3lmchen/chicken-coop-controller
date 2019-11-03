@@ -254,6 +254,46 @@ void Cmd_SetDelays(CommandParameter &Parameters) {
   LightCfg.Save();
 }
 
+void Cmd_SetSSDelays(CommandParameter &Parameters) {
+  uint32_t value = Parameters.NextParameterAsInteger(0);
+  int channelNr = Parameters.NextParameterAsInteger(0);
+  if(channelNr<0 || channelNr > 2) {
+    Parameters.GetSource().
+      println(F("Channel parameter out of range (values between 0 and 2 are allowed). "));
+    channelNr = 0;
+  }
+  if(channelNr == 0) {
+      LightCfg.Data.SSDelayA0 = value*60ul;
+  } else if(channelNr == 1) {
+      LightCfg.Data.SSDelayA1 = vakue*60ul;
+  } else if(channelNr == 2) {
+      LightCfg.Data.SSDelayDO0 = value*60ul;
+  } else {
+      Parameters.GetSource().println(F("invalid channel"));
+  }
+  LightCfg.Save();
+}
+
+void Cmd_SetSRDelays(CommandParameter &Parameters) {
+    uint32_t value = Parameters.NextParameterAsInteger(0);
+    int channelNr = Parameters.NextParameterAsInteger(0);
+    if(channelNr<0 || channelNr > 2) {
+      Parameters.GetSource().
+        println(F("Channel parameter out of range (values between 0 and 2 are allowed). "));
+      channelNr = 0;
+    }
+    if(channelNr == 0) {
+        LightCfg.Data.SRDelayA0 = value*60ul;
+    } else if(channelNr == 1) {
+        LightCfg.Data.SRDelayA1 = vakue*60ul;
+    } else if(channelNr == 2) {
+        LightCfg.Data.SRDelayDO0 = value*60ul;
+    } else {
+        Parameters.GetSource().println(F("invalid channel"));
+    }
+    LightCfg.Save();
+}
+
 void Cmd_SetNestSunsetOffset(CommandParameter &Parameters) {
     int32_t offset0 = Parameters.NextParameterAsInteger(5*60);
     int32_t offset1 = Parameters.NextParameterAsInteger(0);

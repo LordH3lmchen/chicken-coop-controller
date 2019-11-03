@@ -33,6 +33,54 @@ def Main():
                         const=0.0,
                         metavar="UTC-OFFSET-IN-HOURS",
                         nargs='?')
+    parser.add_argument("--set-sunset",
+                        help="set the sunset to given time",
+                        type=int,
+                        nargs=2,
+                        metavar=("HOURS", "MINUTES")
+                        )
+    parser.add_argument("--light-duration",
+                        help="set the light duration",
+                        type=int,
+                        nargs=2,
+                        metavar=("HOURS", "MINUTES")
+                        )
+    parser.add_argument("--sunrise-duration",
+                        help="set the sunrise duration",
+                        type=int,
+                        nargs=1,
+                        metavar="MINUTES"
+                        )
+    parser.add_argument("--sunset-duration",
+                        help="set the sunset duration",
+                        type=int,
+                        nargs=1,
+                        metavar="MINUTES"
+                        )
+    parser.add_argument("--max-brightness",
+                        help="set the max brightness",
+                        type=int,
+                        nargs=2,
+                        metavar=("percent", "channel nr")
+                        )
+    parser.add_argument("--sunset-delay",
+                        help="set the delay off the sunset off the given channel",
+                        type=int,
+                        nargs=2,
+                        metavar=("DELAY", "ChannelNr"),
+                        )
+    parser.add_argument("--sunrise-delay",
+                        help="set the delay off the sunrise off the given channel",
+                        type=int,
+                        nargs=2,
+                        metavar=("DELAY", "ChannelNr"),
+                        )
+    parser.add_argument("--nest-timing",
+                        help="time when the nest opens and closes relative to the sunset",
+                        type=int,
+                        nargs=2,
+                        metavar=("OpenOffset", "CloseOffset"),
+                        )
     args = parser.parse_args()
 
     print(args.__repr__())
