@@ -7,7 +7,7 @@
 * This disables the clock and mocks it with millis(), for testing purposes
 * it is usefull. 1 day runs in about 864s (14min and 24s)
 */
-#define MOCK_CLOCK 0
+#define MOCK_CLOCK 1
 
 #include "MegunoLink.h"
 #include "CommandHandler.h"
@@ -23,6 +23,17 @@ struct NestControllerConfiguration
         NestOpenSunsetOffset = 5l*60l*60l; // 5 hours after sunset
         NestCloseSunsetOffset = 0l*60l*60l; // 0 hour before sunset
     }
+};
+
+
+struct GateControllerConfiguration
+{
+  int32_t GateOpenSunriseOffset;
+  int32_t GateCloseSunsetOffset;
+  void Reset() {
+    GateOpenSunriseOffset = 1l*60l*60l;
+    GateCloseSunsetOffset = 2l*60l*60l;
+  }
 };
 
 struct LightControllerConfiguration
@@ -75,6 +86,7 @@ unsigned long waterBtnPressedTime = 0;
 EEPROMStore<LightControllerConfiguration> LightCfg;
 EEPROMStore<NestControllerConfiguration> NestCfg;
 EEPROMStore<WaterControllerConfiguration> WaterCfg;
+EEPROMStore<GateControllerConfiguration> GateCfg;
 //CommandHandler<12, 35, 7> SerialCommandHandler(Serial,'#',';');
 CommandHandler<13, 35, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
@@ -83,6 +95,11 @@ ArduinoTimer UpdateAoTimer;
   unsigned int timestamp_hour = 0;
 #endif
 
+
+void Cmd_SetGateOffsets(CommandParameter &Parameters) {
+  GateCfg.Data.GateOpenSunriseOffset = Parameters.NextParameterAsInteger(1)*60ul; //offset in Minutes
+  GateCfg.Data.GateCloseSunsetOffset = Parameters.NextParameterAsInteger(1)*60ul; //offset in Minutes
+}
 
 void Cmd_SetWaterFlushDuration(CommandParameter &Parameters) {
   uint32_t water_fd = Parameters.NextParameterAsInteger(10); //duration in minutes
@@ -248,6 +265,20 @@ void Cmd_GetConfig(CommandParameter &Parameters)
   Parameters.GetSource().print(F(" ("));
   Parameters.GetSource().print(LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset);
   Parameters.GetSource().println(F(")"));
+  Parameters.GetSource().print(F("\nGateCloseTime @ "));
+  Parameters.GetSource().print((LightCfg.Data.SunsetTime + GateCfg.Data.GateCloseSunsetOffset)/60ul/60ul);
+  Parameters.GetSource().print(F(":"));
+  Parameters.GetSource().print((LightCfg.Data.SunsetTime + GateCfg.Data.GateCloseSunsetOffset)/60ul%60ul);
+  Parameters.GetSource().print(F(" ("));
+  Parameters.GetSource().print(LightCfg.Data.SunsetTime + GateCfg.Data.GateCloseSunsetOffset);
+  Parameters.GetSource().println(F(")"));
+  Parameters.GetSource().print(F("GateOpenTime @ "));
+  Parameters.GetSource().print((LightCfg.Data.SunsetTime - LightCfg.Data.LightDuration + GateCfg.Data.GateOpenSunriseOffset)/60ul/60ul);
+  Parameters.GetSource().print(F(":"));
+  Parameters.GetSource().print((LightCfg.Data.SunsetTime - LightCfg.Data.LightDuration + GateCfg.Data.GateOpenSunriseOffset)/60ul%60ul);
+  Parameters.GetSource().print(F(" ("));
+  Parameters.GetSource().print(LightCfg.Data.SunsetTime - LightCfg.Data.LightDuration + GateCfg.Data.GateOpenSunriseOffset);
+  Parameters.GetSource().println(F(")"));
   Parameters.GetSource().print(F("\nLight Duration: "));
   Parameters.GetSource().print(LightCfg.Data.LightDuration/60ul/60ul);
   Parameters.GetSource().print(F(":"));
@@ -412,41 +443,51 @@ void UpdateLightOutputs(){
 }
 
 void moveNest(uint8_t state){
-    digitalWrite(NEST_DIGITAL_OUT, state);
-    #if DEBUG_OUTPUT == 3 || DEBUG_OUTPUT == 4
-      if(state == HIGH)
-        Serial.println(F("Nest is opening"));
-      if(state == LOW)
-        Serial.println(F("Nest is closing"));
-    #endif
+  digitalWrite(NEST_DIGITAL_OUT, state);
+  #if DEBUG_OUTPUT == 3 || DEBUG_OUTPUT == 4
+    if(state == HIGH)
+      Serial.println(F("Nest is opening"));
+    if(state == LOW)
+      Serial.println(F("Nest is closing"));
+  #endif
 }
 
 void UpdateNestOutputs() { //HIGH == Nest UP; LOW == Nest Down;
-    uint32_t nestCloseTime = (LightCfg.Data.SunsetTime + NestCfg.Data.NestCloseSunsetOffset)%one_day;
-    uint32_t nestOpenTime = (LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset)%one_day;
-    if(nestCloseTime < nestOpenTime) {
-      if(timestamp > nestCloseTime && timestamp < nestOpenTime){
-        if(digitalRead(NEST_DIGITAL_OUT) == HIGH){
-          moveNest(LOW);
-        }
-      }
-      else {
-        if (digitalRead(NEST_DIGITAL_OUT) == LOW) {
-          moveNest(HIGH);
-        }
-      }
-    } else {
-      if(timestamp > nestOpenTime && timestamp < nestCloseTime) {
-        if(digitalRead(NEST_DIGITAL_OUT) == LOW){
-          moveNest(HIGH);
-        }
-      }
-      else {
-        if (digitalRead(NEST_DIGITAL_OUT) == HIGH){
-        moveNest(LOW);
-        }
-      }
+  uint32_t nestCloseTime = (LightCfg.Data.SunsetTime + NestCfg.Data.NestCloseSunsetOffset)%one_day;
+  uint32_t nestOpenTime = (LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset)%one_day;
+  UpdateOutputTimeBased(nestOpenTime, nestCloseTime, NEST_DIGITAL_OUT);
+}
+
+void UpdateGateOutput() {
+  uint32_t gateOpenTime = (LightCfg.Data.SunsetTime - LightCfg.Data.LightDuration + GateCfg.Data.GateOpenSunriseOffset)%one_day;
+  uint32_t gateCloseTime = (LightCfg.Data.SunsetTime + GateCfg.Data.GateCloseSunsetOffset)%one_day;
+  UpdateOutputTimeBased(gateOpenTime, gateCloseTime, CHICKEN_GATE_DIGITAL_OUT);
+}
+
+void UpdateOutputTimeBased(uint32_t onTimestamp, uint32_t offTimestamp, int pinNumber) {
+  if(offTimestamp < onTimestamp ) {
+    if(timestamp > offTimestamp && timestamp < onTimestamp) {
+      if( digitalRead(pinNumber) == HIGH )
+        digitalWrite(pinNumber, LOW);
     }
+    else
+    {
+      if( digitalRead(pinNumber) == LOW )
+        digitalWrite(pinNumber, HIGH);
+    }
+  }
+  else // (onTimestamp < offTimestamp)
+  {
+    if(timestamp > onTimestamp && timestamp < offTimestamp ) {
+      if( digitalRead(pinNumber) == LOW) 
+        digitalWrite(pinNumber, HIGH);
+    }
+    else
+    {
+      if( digitalRead(pinNumber) == HIGH) 
+        digitalWrite(pinNumber, LOW);
+    }
+  }
 }
 
 void UpdateWaterOutputs() {
@@ -457,11 +498,11 @@ void UpdateWaterOutputs() {
         Serial.println("WaterFlush Btn pressed!");
       #endif
       waterBtnPressedTime = millis();
-      if(digitalRead(WATER_VALVE) == HIGH) {
-        digitalWrite(WATER_VALVE, LOW);
+      if(digitalRead(WATER_VALVE_DO) == HIGH) {
+        digitalWrite(WATER_VALVE_DO , LOW);
       } 
       else {
-        digitalWrite(WATER_VALVE, HIGH);
+        digitalWrite(WATER_VALVE_DO , HIGH);
       }
     } 
     #if DEBUG_OUTPUT == 3
@@ -481,7 +522,7 @@ void UpdateWaterOutputs() {
       Serial.println(waterBtnPressedTime + WaterCfg.Data.WaterFlushDuration);
       Serial.println(millis());
     #endif
-    digitalWrite(WATER_VALVE, LOW);
+    digitalWrite(WATER_VALVE_DO , LOW);
   }
 }
 
@@ -506,17 +547,21 @@ void setup() {
   LightCfg.Load();
   NestCfg.Load();
   WaterCfg.Load();
+  GateCfg.Load();
 
   pinMode(LIGHT_ANALOG_OUT_0, OUTPUT);
   pinMode(LIGHT_ANALOG_OUT_1, OUTPUT);
   pinMode(LIGHT_ANALOG_OUT_2, OUTPUT);
   pinMode(LIGHT_DIGITAL_OUT_0, OUTPUT);
   pinMode(NEST_DIGITAL_OUT, OUTPUT);
-  pinMode(WATER_VALVE, OUTPUT);
+  pinMode(WATER_VALVE_DO, OUTPUT);
   pinMode(WATER_BTN, INPUT);
+  pinMode(CHICKEN_GATE_DIGITAL_OUT, OUTPUT);
+  pinMode(FEED_SENSOR_DI, INPUT);
+  pinMode(FEED_TRANSPORT_MOTOR_DO, OUTPUT);
 
   digitalWrite(NEST_DIGITAL_OUT, HIGH);
-  digitalWrite(WATER_VALVE, LOW);
+  digitalWrite(WATER_VALVE_DO, LOW);
 
   Serial.println("chicken-coop-light-controller-v0.01");
 }
@@ -552,5 +597,6 @@ void loop() {
       UpdateLightOutputs();
       UpdateNestOutputs();
       UpdateWaterOutputs();
+      UpdateGateOutput();
     }
 }
