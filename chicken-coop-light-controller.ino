@@ -15,6 +15,7 @@
 #include "ArduinoTimer.h"
 #include "Configuration_Controllino_Maxi.h"
 
+
 struct NestControllerConfiguration
 {
     int32_t NestOpenSunsetOffset;
@@ -35,6 +36,7 @@ struct GateControllerConfiguration
     GateCloseSunsetOffset = 2l*60l*60l;
   }
 };
+
 
 struct LightControllerConfiguration
 {
@@ -68,6 +70,7 @@ struct LightControllerConfiguration
   }
 };
 
+
 struct WaterControllerConfiguration
 {
     unsigned long WaterFlushDuration;
@@ -76,6 +79,8 @@ struct WaterControllerConfiguration
     }
 };
 
+
+//TODO implement Feed Controller and AlarmOutput 
 
 uint32_t timestamp = 0ul;
 uint32_t sunriseTime;
@@ -87,8 +92,7 @@ EEPROMStore<LightControllerConfiguration> LightCfg;
 EEPROMStore<NestControllerConfiguration> NestCfg;
 EEPROMStore<WaterControllerConfiguration> WaterCfg;
 EEPROMStore<GateControllerConfiguration> GateCfg;
-//CommandHandler<12, 35, 7> SerialCommandHandler(Serial,'#',';');
-CommandHandler<13, 35, 7> SerialCommandHandler(Serial,'#',';');
+CommandHandler<16, 35, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
 
 #if MOCK_CLOCK
@@ -96,22 +100,74 @@ ArduinoTimer UpdateAoTimer;
 #endif
 
 
-void Cmd_SetGateOffsets(CommandParameter &Parameters) {
-  GateCfg.Data.GateOpenSunriseOffset = Parameters.NextParameterAsInteger(1)*60ul; //offset in Minutes
+/*
+  This function defines the SetGateOffset Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetGateOffset [Sunrise Offset] [Sunset Offset];
+
+  Both Sunrise Offset and Sunset Offset are integers. These define when the 
+  Gate is opened and closed based on the current sunset and sunrise. Offset is
+  specified in minutes.
+*/
+void Cmd_SetGateOffsets(CommandParameter &Parameters) { 
+  GateCfg.Data.GateOpenSunriseOffset = Parameters.NextParameterAsInteger(1)*60ul; //offset in Minutes 
   GateCfg.Data.GateCloseSunsetOffset = Parameters.NextParameterAsInteger(1)*60ul; //offset in Minutes
+  GateCfg.Save();
 }
 
+
+/*
+  This function defines the SetWaterFlushDuration Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetWaterFlushDuration [Duration in minutes];
+
+  This defines how long the Water is flushed trough the drinking lines when
+  the flush Button is pressed. The Button can be pushed again to stop the 
+  flushing.
+*/
 void Cmd_SetWaterFlushDuration(CommandParameter &Parameters) {
   uint32_t water_fd = Parameters.NextParameterAsInteger(10); //duration in minutes
   WaterCfg.Data.WaterFlushDuration = water_fd*60ul*1000ul;
   WaterCfg.Save();
 }
 
+
+/*
+  This function defines the GetWaterFlushDuration Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #GetWaterFlushDuration;
+
+  Prints out the current Water Flush Duration Setting.
+*/
 void Cmd_GetWaterFlushDuration(CommandParameter &Parameters) {
   Parameters.GetSource().print(WaterCfg.Data.WaterFlushDuration/(60ul*1000ul));
   Parameters.GetSource().println(F(" minutes"));
 }
 
+
+/*
+  This function defines the SetSunset Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetSunset [hour] [minute];
+
+  Sets the sunsset time.
+*/
 void Cmd_SetSunset(CommandParameter &Parameters)
 {
   uint32_t ss_hour = Parameters.NextParameterAsInteger(19);
@@ -120,6 +176,18 @@ void Cmd_SetSunset(CommandParameter &Parameters)
   LightCfg.Save();
 }
 
+
+/*
+  This function defines the SetLightDuration Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetLightDuration [hours] [minutes];
+
+  Sets the length of the day (in the chickehouse).
+*/
 void Cmd_SetLightDuration(CommandParameter &Parameters)
 {
   uint32_t lightd_hours = Parameters.NextParameterAsInteger(9);
@@ -133,6 +201,19 @@ void Cmd_SetLightDuration(CommandParameter &Parameters)
   }
 }
 
+
+/*
+  This function defines the SetSunriseDuration Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetSunriseDuration [minutes];
+
+  Sets the duration off the dimming phase. The duration is limited between 15
+  and 120 minutes.
+*/
 void Cmd_SetSunriseDuration(CommandParameter &Parameters)
 {
   uint32_t sr_duration = Parameters.NextParameterAsInteger(30);
@@ -145,6 +226,19 @@ void Cmd_SetSunriseDuration(CommandParameter &Parameters)
   }
 }
 
+
+/*
+  This function defines the SetSunsetDuration Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetSunsetDuration [minutes];
+
+  Sets the duration off the dimming phase. The duration is limited between 15
+  and 120 minutes.
+*/
 void Cmd_SetSunsetDuration(CommandParameter &Parameters)
 {
   uint32_t ss_duration = Parameters.NextParameterAsInteger(45);
@@ -157,6 +251,19 @@ void Cmd_SetSunsetDuration(CommandParameter &Parameters)
   }
 }
 
+
+/*
+  This function defines the SetMaxBrightness Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetMaxBrightness [percent] [percent] [percent];
+
+  Sets the maximum brightness for each channel. The PLC has three channels
+  Each channel is connected to a different light dimmer.
+*/
 void Cmd_SetMaxBrightness(CommandParameter &Parameters)
 {
   int user_p0 = Parameters.NextParameterAsInteger(178);
@@ -183,6 +290,19 @@ void Cmd_SetMaxBrightness(CommandParameter &Parameters)
   LightCfg.Save();
 }
 
+
+/*
+  This function defines the SetMaxBrightness Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetMaxBrightness [percent] [channel nr];
+
+  Sets the maximum brightness for a specific channel. The PLC has three channels
+  Each channel is connected to a different light dimmer.
+*/
 void Cmd_SetMaxBrightnessForChannel(CommandParameter &Parameters)
 {
   int value = Parameters.NextParameterAsInteger(178);
@@ -209,6 +329,17 @@ void Cmd_SetMaxBrightnessForChannel(CommandParameter &Parameters)
   LightCfg.Save();
 }
 
+/*
+  This function defines the SetClock Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetClock [day] [weekday] [month] [year] [hour] [minute] [second];
+
+  Sets the internal Clock to the given date and time.
+*/
 void Cmd_SetClock(CommandParameter &Parameters)
 {
   int aDay = Parameters.NextParameterAsInteger(1);
@@ -225,6 +356,19 @@ void Cmd_SetClock(CommandParameter &Parameters)
   }
 }
 
+
+/*
+  This function defines the GetConfig Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #GetConfig;
+
+  Prints out all the Settings and Parameters off the PLC as a human readable
+  text.
+*/
 void Cmd_GetConfig(CommandParameter &Parameters)
 {
   #if MOCK_CLOCK
@@ -316,17 +460,46 @@ void Cmd_GetConfig(CommandParameter &Parameters)
 
 }
 
+/*
+  This function defines the SetDelays Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetDelays  [SunriseDelay 0] [SunriseDelay 1] [SunriseDelay 2][SunSetDelay 0] [SunSetDelay 1] [SunSetDelay 2];
+
+  Sets the internal Clock to the given date and time.
+*/
 void Cmd_SetDelays(CommandParameter &Parameters) {
+  uint32_t delay3 = Parameters.NextParameterAsInteger(0);
+  uint32_t delay4 = Parameters.NextParameterAsInteger(1);
+  uint32_t delay5 = Parameters.NextParameterAsInteger(2);
   uint32_t delay0 = Parameters.NextParameterAsInteger(0);
   uint32_t delay1 = Parameters.NextParameterAsInteger(2);
   uint32_t delay2 = Parameters.NextParameterAsInteger(1);
   LightCfg.Data.SSDelayA0 = delay0*60ul;
   LightCfg.Data.SSDelayA1 = delay1*60ul;
   LightCfg.Data.SSDelayDO0 = delay2*60ul;
+  LightCfg.Data.SRDelayA0 = delay3*60ul;
+  LightCfg.Data.SRDelayA1 = delay4*60ul;
+  LightCfg.Data.SRDelayDO0 = delay5*60ul;
   LightCfg.Save();
 }
 
-void Cmd_SetSSDelays(CommandParameter &Parameters) {
+
+/*
+  This function defines the SetSSDelay Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetSSDelay  [Sunset Delay in minutes] [Channel Nr];
+
+  Sets the internal Clock to the given date and time.
+*/
+void Cmd_SetSSDelay(CommandParameter &Parameters) {
   uint32_t value = Parameters.NextParameterAsInteger(0);
   int channelNr = Parameters.NextParameterAsInteger(0);
   if(channelNr<0 || channelNr > 2) {
@@ -346,7 +519,19 @@ void Cmd_SetSSDelays(CommandParameter &Parameters) {
   LightCfg.Save();
 }
 
-void Cmd_SetSRDelays(CommandParameter &Parameters) {
+
+/*
+  This function defines the SetSRDelay Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetSRDelay  [Sunset Delay in minutes] [Channel Nr];
+
+  Sets the internal Clock to the given date and time.
+*/
+void Cmd_SetSRDelay(CommandParameter &Parameters) {
     uint32_t value = Parameters.NextParameterAsInteger(0);
     int channelNr = Parameters.NextParameterAsInteger(0);
     if(channelNr<0 || channelNr > 2) {
@@ -366,6 +551,18 @@ void Cmd_SetSRDelays(CommandParameter &Parameters) {
     LightCfg.Save();
 }
 
+
+/*
+  This function defines the SetNestOffset Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetNestOffset  [NestOpenSunsetOffset in minutes] [NestCloseSunsetOffset];
+
+  Sets the internal Clock to the given date and time.
+*/
 void Cmd_SetNestSunsetOffset(CommandParameter &Parameters) {
     int32_t offset0 = Parameters.NextParameterAsInteger(5*60);
     int32_t offset1 = Parameters.NextParameterAsInteger(0);
@@ -434,7 +631,6 @@ void UpdateLightAO(uint32_t srDelay, uint32_t ssDelay, int maxBrightness, int ar
 }
 
 
-
 void UpdateLightOutputs(){
   sunriseTime = (LightCfg.Data.SunsetTime-LightCfg.Data.LightDuration)%one_day;
   UpdateLightAO(LightCfg.Data.SRDelayA0, LightCfg.Data.SSDelayA0, LightCfg.Data.MaxBrightness0, LIGHT_ANALOG_OUT_0, false);
@@ -442,28 +638,46 @@ void UpdateLightOutputs(){
   UpdateLightAO(LightCfg.Data.SRDelayDO0, LightCfg.Data.SSDelayDO0, LightCfg.Data.MaxBrightness2, LIGHT_ANALOG_OUT_2, true);
 }
 
-void moveNest(uint8_t state){
-  digitalWrite(NEST_DIGITAL_OUT, state);
-  #if DEBUG_OUTPUT == 3 || DEBUG_OUTPUT == 4
-    if(state == HIGH)
-      Serial.println(F("Nest is opening"));
-    if(state == LOW)
-      Serial.println(F("Nest is closing"));
-  #endif
-}
 
+/*
+  This function updates the digital output off the plc to open and close the
+  nest. This function is called in the main loop.
+  The Nest is closed before Sunset and a few hours after sunset. This prevents
+  that chicken sleep in the nest.
+
+  Parameters: None
+*/
 void UpdateNestOutputs() { //HIGH == Nest UP; LOW == Nest Down;
   uint32_t nestCloseTime = (LightCfg.Data.SunsetTime + NestCfg.Data.NestCloseSunsetOffset)%one_day;
   uint32_t nestOpenTime = (LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset)%one_day;
   UpdateOutputTimeBased(nestOpenTime, nestCloseTime, NEST_DIGITAL_OUT);
 }
 
-void UpdateGateOutput() {
+
+/*
+  This function updates the digital output off the plc to open and close the gate.
+  this function is called in the main loop.
+  The Gate is usually closed after Sunset and opened right after sunrise.
+
+  Parameters: None
+*/
+void UpdateGateOutput() { //HIGH == Gate open; LOW == Gate closed
   uint32_t gateOpenTime = (LightCfg.Data.SunsetTime - LightCfg.Data.LightDuration + GateCfg.Data.GateOpenSunriseOffset)%one_day;
   uint32_t gateCloseTime = (LightCfg.Data.SunsetTime + GateCfg.Data.GateCloseSunsetOffset)%one_day;
   UpdateOutputTimeBased(gateOpenTime, gateCloseTime, CHICKEN_GATE_DIGITAL_OUT);
 }
 
+
+/*
+  This function updates the a given digital output off the plc.
+
+  Parameters: 
+    onTimestamp - The Timestamp when the Digital Output switch to high
+    offTimestamp - the Timestamp when the digital output switch to low
+    pinNumbe - the Number off the pin that shoud be changed
+
+  This function is used to open and close the nest and gate for the chickens.
+*/
 void UpdateOutputTimeBased(uint32_t onTimestamp, uint32_t offTimestamp, int pinNumber) {
   if(offTimestamp < onTimestamp ) {
     if(timestamp > offTimestamp && timestamp < onTimestamp) {
@@ -490,6 +704,13 @@ void UpdateOutputTimeBased(uint32_t onTimestamp, uint32_t offTimestamp, int pinN
   }
 }
 
+
+/*
+  Controlls the water flush process. It reads a button to start the flush
+  process off the water pipes. The flush process can be aborted witch
+  another press off the button. This function also gets called in the main
+  loop().
+*/
 void UpdateWaterOutputs() {
   int currentBtnInput = digitalRead(WATER_BTN);
   if(waterBtnRead != currentBtnInput) {
@@ -529,6 +750,7 @@ void UpdateWaterOutputs() {
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
+  //AddCommands to theHandler 
   SerialCommandHandler.AddCommand(F("GetClock"), Cmd_GetConfig);
   SerialCommandHandler.AddCommand(F("GetConfig"), Cmd_GetConfig);
   SerialCommandHandler.AddCommand(F("SetSunset"), Cmd_SetSunset);
@@ -539,11 +761,16 @@ void setup() {
   SerialCommandHandler.AddCommand(F("SetMaxBrightness"), Cmd_SetMaxBrightness);
   SerialCommandHandler.AddCommand(F("SetMaxBrightnessForChannel"), Cmd_SetMaxBrightnessForChannel);
   SerialCommandHandler.AddCommand(F("SetDelays"), Cmd_SetDelays);
+  SerialCommandHandler.AddCommand(F("SetSSDelay"), Cmd_SetSSDelay);
+  SerialCommandHandler.AddCommand(F("SetSRDelay"), Cmd_SetSS=RDelay);
   SerialCommandHandler.AddCommand(F("SetNestOffset"), Cmd_SetNestSunsetOffset);
   SerialCommandHandler.AddCommand(F("SetWaterFlushDuration"), Cmd_SetWaterFlushDuration);
   SerialCommandHandler.AddCommand(F("GetWaterFlushDuration"), Cmd_GetWaterFlushDuration);
+  SerialCommandHandler.AddCommand(F("SetGateOffsets"), Cmd_SetGateOffsets);
+
 
   Controllino_RTC_init(0);
+  //Load the configs
   LightCfg.Load();
   NestCfg.Load();
   WaterCfg.Load();

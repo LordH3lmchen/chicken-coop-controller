@@ -1,5 +1,5 @@
 #include "Controllino.h"
-//TODO Mega2560 bot implemented yet
+//TODO Mega2560 not implemented yet
 /*
 #define LIGHT_ANALOG_OUT_0 CONTROLLINO_AO0
 #define LIGHT_ANALOG_OUT_1 CONTROLLINO_AO1
