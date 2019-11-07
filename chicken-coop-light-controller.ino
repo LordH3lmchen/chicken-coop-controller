@@ -762,7 +762,7 @@ void setup() {
   SerialCommandHandler.AddCommand(F("SetMaxBrightnessForChannel"), Cmd_SetMaxBrightnessForChannel);
   SerialCommandHandler.AddCommand(F("SetDelays"), Cmd_SetDelays);
   SerialCommandHandler.AddCommand(F("SetSSDelay"), Cmd_SetSSDelay);
-  SerialCommandHandler.AddCommand(F("SetSRDelay"), Cmd_SetSS=RDelay);
+  SerialCommandHandler.AddCommand(F("SetSRDelay"), Cmd_SetSRDelay);
   SerialCommandHandler.AddCommand(F("SetNestOffset"), Cmd_SetNestSunsetOffset);
   SerialCommandHandler.AddCommand(F("SetWaterFlushDuration"), Cmd_SetWaterFlushDuration);
   SerialCommandHandler.AddCommand(F("GetWaterFlushDuration"), Cmd_GetWaterFlushDuration);
