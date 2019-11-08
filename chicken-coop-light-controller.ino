@@ -750,9 +750,9 @@ void UpdateWaterOutputs() {
       Serial.println("long press of WaterBtn");
     #endif
   }
-  if( waterBtnPressedTime + WaterCfg.Data.WaterFlushDuration < millis() ) { //TODO direkter vergleich nicht gut im falle eines überlaufs. ausbessern!!
+  if( millis() - waterBtnPressedTime >= WaterCfg.Data.WaterFlushDuration ) { 
     #if DEBUG_OUTPUT == 3
-      Serial.println(waterBtnPressedTime + WaterCfg.Data.WaterFlushDuration);
+      Serial.println(millis() - waterBtnPressedTime);
       Serial.println(millis());
     #endif
     digitalWrite(WATER_VALVE_DO , LOW);
@@ -877,10 +877,11 @@ void loop() {
   if( alarmState || feedAlarmState ) { 
     /*Add aditional alarm States as needed. 
     (Right now only feedAlarmState is used)*/
-    if( digitalRead(ALARM_OUT == LOW) )
-    digitalWrite(ALARM_OUT, HIGH);
+    if( digitalRead(ALARM_OUT) == LOW )
+      digitalWrite(ALARM_OUT, HIGH);
   }
   else {
-    digitalWrite(ALARM_OUT, LOW);
+    if( digitalRead(ALARM_OUT) == HIGH )
+      digitalWrite(ALARM_OUT, LOW);
   }
 }
