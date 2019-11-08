@@ -38,6 +38,14 @@ struct GateControllerConfiguration
 };
 
 
+struct FeedControllerConfiguration
+{
+  unsigned long MaximumFeedMotorRuntimeMillis;
+  void Reset() {
+    MaximumFeedMotorRuntimeMillis = 5*60*1000;
+  }
+};
+
 struct LightControllerConfiguration
 {
   uint32_t SunsetTime;
@@ -87,11 +95,15 @@ uint32_t sunriseTime;
 const uint32_t one_day = 24ul*60ul*60ul;
 int waterBtnRead = 0;
 unsigned long waterBtnPressedTime = 0;
+unsigned long motorSwitchedOnMillis = 0;
+bool alarmState = false;
+bool feedAlarmState = false;
 
 EEPROMStore<LightControllerConfiguration> LightCfg;
 EEPROMStore<NestControllerConfiguration> NestCfg;
 EEPROMStore<WaterControllerConfiguration> WaterCfg;
 EEPROMStore<GateControllerConfiguration> GateCfg;
+EEPROMStore<FeedControllerConfiguration> FeedCfg;
 CommandHandler<16, 35, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
 
@@ -738,7 +750,7 @@ void UpdateWaterOutputs() {
       Serial.println("long press of WaterBtn");
     #endif
   }
-  if( waterBtnPressedTime + WaterCfg.Data.WaterFlushDuration < millis() ) {
+  if( waterBtnPressedTime + WaterCfg.Data.WaterFlushDuration < millis() ) { //TODO direkter vergleich nicht gut im falle eines überlaufs. ausbessern!!
     #if DEBUG_OUTPUT == 3
       Serial.println(waterBtnPressedTime + WaterCfg.Data.WaterFlushDuration);
       Serial.println(millis());
@@ -746,6 +758,37 @@ void UpdateWaterOutputs() {
     digitalWrite(WATER_VALVE_DO , LOW);
   }
 }
+
+
+/*
+  This updates the feed sensor and limits the time the motor runs. If a limit is exceeded there is something wrong. Like feed is empty or stuck in thje silo.
+  Then an Alarm contact is used to show something is wrong. The normal operation is when the sensor givees the signal to deliver feed the motor is switched on to deliver more feed.
+
+  It is just a capacitive switch with an integrated timer.
+*/
+void UpdateFeedMotor() {
+  if( (digitalRead(FEED_SENSOR_DI) == HIGH) && (!feedAlarmState)){
+    if ( digitalRead(FEED_TRANSPORT_MOTOR_DO) == LOW ) {
+      digitalWrite(FEED_TRANSPORT_MOTOR_DO, HIGH);
+      motorSwitchedOnMillis = millis();
+    }
+    if ( (millis() - motorSwitchedOnMillis) >= FeedCfg.Data.MaximumFeedMotorRuntimeMillis ) {
+      digitalWrite(FEED_TRANSPORT_MOTOR_DO, LOW);
+      feedAlarmState = true;
+    }
+  }
+  else { 
+    /* If the Sensor Recognizes feed it resets the alarm state. To restart the
+    feeding process a push button (opener) das to be connected to the sensor 
+    in series. This will start the Motors for another round. Repeat till the 
+    feeding process works again. So this code is than run when the Button is 
+    pushed ar the Sensor delivers a LOW signal.
+    */
+    digitalWrite(FEED_TRANSPORT_MOTOR_DO, LOW);
+    feedAlarmState = false;
+  }
+}
+
 
 void setup() {
   // put your setup code here, to run once:
@@ -775,6 +818,7 @@ void setup() {
   NestCfg.Load();
   WaterCfg.Load();
   GateCfg.Load();
+  FeedCfg.Load();
 
   pinMode(LIGHT_ANALOG_OUT_0, OUTPUT);
   pinMode(LIGHT_ANALOG_OUT_1, OUTPUT);
@@ -786,6 +830,7 @@ void setup() {
   pinMode(CHICKEN_GATE_DIGITAL_OUT, OUTPUT);
   pinMode(FEED_SENSOR_DI, INPUT);
   pinMode(FEED_TRANSPORT_MOTOR_DO, OUTPUT);
+  pinMode(ALARM_OUT, OUTPUT);
 
   digitalWrite(NEST_DIGITAL_OUT, HIGH);
   digitalWrite(WATER_VALVE_DO, LOW);
@@ -796,12 +841,13 @@ void setup() {
 void loop() {
   SerialCommandHandler.Process();
   #if MOCK_CLOCK == 1 // A Day runs 100 times as fast.
-    if(UpdateAoTimer.TimePassed_Milliseconds(10)){
+    if(UpdateAoTimer.TimePassed_Milliseconds(10))
   #elif DEBUG_OUTPUT == 2 || DEBUG_OUTPUT == 1
-    if(UpdateAoTimer.TimePassed_Milliseconds(3000)){ //slow down in debug mode 1 or 2
+    if(UpdateAoTimer.TimePassed_Milliseconds(3000)) //slow down in debug mode 1 or 2
   #else
-    if(UpdateAoTimer.TimePassed_Milliseconds(100)){ //faster in production
+    if(UpdateAoTimer.TimePassed_Milliseconds(100)) //faster in production
   #endif
+  {
       uint32_t controllino_sec = Controllino_GetSecond();
       uint32_t controllino_min = Controllino_GetMinute();
       uint32_t controllino_hour = Controllino_GetHour();
@@ -826,4 +872,15 @@ void loop() {
       UpdateWaterOutputs();
       UpdateGateOutput();
     }
+  //This runs as frequent as possible
+  UpdateFeedMotor();
+  if( alarmState || feedAlarmState ) { 
+    /*Add aditional alarm States as needed. 
+    (Right now only feedAlarmState is used)*/
+    if( digitalRead(ALARM_OUT == LOW) )
+    digitalWrite(ALARM_OUT, HIGH);
+  }
+  else {
+    digitalWrite(ALARM_OUT, LOW);
+  }
 }
