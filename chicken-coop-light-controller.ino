@@ -2,7 +2,7 @@
 * Changes the DEBUG Output.
 * Right now it is a integer that represents a Level.
 */
-#define DEBUG_OUTPUT 0
+#define DEBUG_OUTPUT 5
 /*
 * This disables the clock and mocks it with millis(), for testing purposes
 * it is usefull. 1 day runs in about 864s (14min and 24s)
@@ -40,9 +40,9 @@ struct GateControllerConfiguration
 
 struct FeedControllerConfiguration
 {
-  unsigned long MaximumFeedMotorRuntimeMillis;
+  unsigned long FeedMotorTimeoutMillis;
   void Reset() {
-    MaximumFeedMotorRuntimeMillis = 5*60*1000;
+    FeedMotorTimeoutMillis = 5*60*1000;
   }
 };
 
@@ -104,13 +104,29 @@ EEPROMStore<NestControllerConfiguration> NestCfg;
 EEPROMStore<WaterControllerConfiguration> WaterCfg;
 EEPROMStore<GateControllerConfiguration> GateCfg;
 EEPROMStore<FeedControllerConfiguration> FeedCfg;
-CommandHandler<16, 35, 7> SerialCommandHandler(Serial,'#',';');
+CommandHandler<17, 35, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
 
 #if MOCK_CLOCK
   unsigned int timestamp_hour = 0;
 #endif
 
+
+
+/*
+  This function defines the SetGateOffset Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetMaximumFeedMotorRuntime [runtime in seconds];
+
+*/
+void Cmd_SetFeedMotorTimeoutMillis(CommandParameter &Parameters) { 
+  FeedCfg.Data.FeedMotorTimeoutMillis = Parameters.NextParameterAsInteger(1)*1000ul; //runtime in seconds 
+  FeedCfg.Save();
+}
 
 /*
   This function defines the SetGateOffset Command
@@ -469,6 +485,9 @@ void Cmd_GetConfig(CommandParameter &Parameters)
   Parameters.GetSource().print(F("Light SunRiseDelayDO0="));
   Parameters.GetSource().print(LightCfg.Data.SRDelayDO0/60ul);
   Parameters.GetSource().println(F(" minutes"));
+  Parameters.GetSource().print(F("FeedMotorTimeoutMillis="));
+  Parameters.GetSource().print(FeedCfg.Data.FeedMotorTimeoutMillis/1000ul);
+  Parameters.GetSource().println(F(" seconds"));
 
 }
 
@@ -767,12 +786,18 @@ void UpdateWaterOutputs() {
   It is just a capacitive switch with an integrated timer.
 */
 void UpdateFeedMotor() {
-  if( (digitalRead(FEED_SENSOR_DI) == HIGH) && (!feedAlarmState)){
-    if ( digitalRead(FEED_TRANSPORT_MOTOR_DO) == LOW ) {
+  if( (digitalRead(FEED_SENSOR_DI) == HIGH)){
+    if ( (digitalRead(FEED_TRANSPORT_MOTOR_DO) == LOW) && (!feedAlarmState)) {
       digitalWrite(FEED_TRANSPORT_MOTOR_DO, HIGH);
       motorSwitchedOnMillis = millis();
+      #if DEBUG_OUTPUT == 5
+        Serial.println("feeding motor on");
+      #endif
     }
-    if ( (millis() - motorSwitchedOnMillis) >= FeedCfg.Data.MaximumFeedMotorRuntimeMillis ) {
+    if ( ((millis() - motorSwitchedOnMillis) >= FeedCfg.Data.FeedMotorTimeoutMillis) && !feedAlarmState ) {
+      #if DEBUG_OUTPUT == 5
+        Serial.println("ALARM - FEEDING MOTOR TIMEOUT!");
+      #endif
       digitalWrite(FEED_TRANSPORT_MOTOR_DO, LOW);
       feedAlarmState = true;
     }
@@ -792,7 +817,7 @@ void UpdateFeedMotor() {
 
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(9600);
+  Serial.begin(115200);
   //AddCommands to theHandler 
   SerialCommandHandler.AddCommand(F("GetClock"), Cmd_GetConfig);
   SerialCommandHandler.AddCommand(F("GetConfig"), Cmd_GetConfig);
@@ -810,6 +835,7 @@ void setup() {
   SerialCommandHandler.AddCommand(F("SetWaterFlushDuration"), Cmd_SetWaterFlushDuration);
   SerialCommandHandler.AddCommand(F("GetWaterFlushDuration"), Cmd_GetWaterFlushDuration);
   SerialCommandHandler.AddCommand(F("SetGateOffsets"), Cmd_SetGateOffsets);
+  SerialCommandHandler.AddCommand(F("SetFeedMotorTimeoutMillis"), Cmd_SetFeedMotorTimeoutMillis);
 
 
   Controllino_RTC_init(0);
@@ -856,7 +882,7 @@ void loop() {
         timestamp += controllino_min*60ul;
         timestamp += controllino_hour*60ul*60ul;
       #elif MOCK_CLOCK == 1
-        timestamp = millis()/1ul%one_day;
+        timestamp = millis()/10ul%one_day;
         if((timestamp/60ul/60ul) != timestamp_hour){
             timestamp_hour = timestamp/60/60;
             Serial.print(timestamp_hour);
