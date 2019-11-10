@@ -87,9 +87,6 @@ struct WaterControllerConfiguration
     }
 };
 
-
-//TODO implement Feed Controller and AlarmOutput 
-
 uint32_t timestamp = 0ul;
 uint32_t sunriseTime;
 const uint32_t one_day = 24ul*60ul*60ul;
@@ -114,13 +111,17 @@ ArduinoTimer UpdateAoTimer;
 
 
 /*
-  This function defines the SetGateOffset Command
+  This function defines the SetFeedMotorTimeout Command
 
   Parameters: The cmdArguments
   
 
   Syntax off the serial command:
   #SetMaximumFeedMotorRuntime [runtime in seconds];
+  
+  This prevets the feed motor from running all time. It limits the duration
+  the motor runs. When the timeout is reached the motor stopps until the reset
+  button is pressed. Also an alarm lamp is switched on to indicate an issue.
 
 */
 void Cmd_SetFeedMotorTimeoutMillis(CommandParameter &Parameters) { 

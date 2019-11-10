@@ -1,3 +1,5 @@
 *.pdf
 doc/*.pdf
 .vscode/
+__pycache__/
+*.pyc
