@@ -99,7 +99,7 @@ def Main():
     parser = createParser()
     args = parser.parse_args()
 
-    print(args.__repr__())
+    #print(args.__repr__())
 
     ser = serial.Serial(args.port, args.baud, timeout=2)
     time.sleep(2)

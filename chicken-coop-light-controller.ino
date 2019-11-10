@@ -2,12 +2,14 @@
 * Changes the DEBUG Output.
 * Right now it is a integer that represents a Level.
 */
-#define DEBUG_OUTPUT 5
+#define DEBUG_OUTPUT 0
 /*
 * This disables the clock and mocks it with millis(), for testing purposes
 * it is usefull. 1 day runs in about 864s (14min and 24s)
 */
-#define MOCK_CLOCK 1
+#define MOCK_CLOCK 0
+
+#define VERSION "v0.02"
 
 #include "MegunoLink.h"
 #include "CommandHandler.h"
@@ -104,7 +106,7 @@ EEPROMStore<FeedControllerConfiguration> FeedCfg;
 CommandHandler<17, 35, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
 
-#if MOCK_CLOCK
+#if MOCK_CLOCK == 1
   unsigned int timestamp_hour = 0;
 #endif
 
@@ -862,7 +864,8 @@ void setup() {
   digitalWrite(NEST_DIGITAL_OUT, HIGH);
   digitalWrite(WATER_VALVE_DO, LOW);
 
-  Serial.println("chicken-coop-light-controller-v0.01");
+  Serial.print("chicken-coop-light-controller-");
+  Serial.println(VERSION);
 }
 
 void loop() {
