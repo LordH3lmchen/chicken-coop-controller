@@ -15,8 +15,13 @@
 #include "CommandHandler.h"
 #include "EEPROMStore.h"
 #include "ArduinoTimer.h"
-#include "Configuration_Controllino_Maxi.h"
-
+#if defined(CONTROLLINO_MAXI)
+  #include "Configuration_Controllino_Maxi.h"
+#elif defined(CONTROLLINO_MAXI_AUTOMATION)
+  #include "Configuration_Controllino_Maxi_Automation.h"
+#else 
+  #error Please, select one of the supported CONTROLLINO variants in Tools->Board
+#endif
 
 struct NestControllerConfiguration
 {
@@ -44,7 +49,7 @@ struct FeedControllerConfiguration
 {
   unsigned long FeedMotorTimeoutMillis;
   void Reset() {
-    FeedMotorTimeoutMillis = 5*60*1000;
+    FeedMotorTimeoutMillis = 5ul*60ul*1000ul;
   }
 };
 
@@ -97,13 +102,17 @@ unsigned long waterBtnPressedTime = 0;
 unsigned long motorSwitchedOnMillis = 0;
 bool alarmState = false;
 bool feedAlarmState = false;
+bool freezeTime = false;
+int currentBrightnessCh0 = 0;
+int currentBrightnessCh1 = 0;
+int currentBrightnessCh2 = 0;
 
 EEPROMStore<LightControllerConfiguration> LightCfg;
 EEPROMStore<NestControllerConfiguration> NestCfg;
 EEPROMStore<WaterControllerConfiguration> WaterCfg;
 EEPROMStore<GateControllerConfiguration> GateCfg;
 EEPROMStore<FeedControllerConfiguration> FeedCfg;
-CommandHandler<17, 35, 7> SerialCommandHandler(Serial,'#',';');
+CommandHandler<20, 35, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
 
 #if MOCK_CLOCK == 1
@@ -605,7 +614,69 @@ void Cmd_SetNestSunsetOffset(CommandParameter &Parameters) {
     NestCfg.Save();
 }
 
-void UpdateLightAO(uint32_t srDelay, uint32_t ssDelay, int maxBrightness, int arduinoPin, bool digital_out) {
+/*
+  This function defines the GetCurrentLightBrightness Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #GetCurrentLightBrightness  [channel];
+
+  prints out the current brightness off a channel
+*/
+void Cmd_GetCurrentLightBrightness(CommandParameter &Parameters) {
+  int channel = Parameters.NextParameterAsInteger(0);
+  if(channel == 0){
+    Serial.print("channel 0 - current value = ");
+    Serial.println(currentBrightnessCh0);
+  }
+  if(channel == 1){
+    Serial.println(currentBrightnessCh1);
+  }
+  if(channel == 2){
+    Serial.println(currentBrightnessCh2);
+  }
+}
+
+/*
+  This function defines the FreezeTimeTo Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #FreezeTimeTo [hour] [minute] [second];
+
+  freezes the time to given time. This can be used to test the time based stuff.
+*/
+void Cmd_FreezeTimeTo(CommandParameter &Parameters) {
+  int hour = Parameters.NextParameterAsInteger(0);
+  int minute = Parameters.NextParameterAsInteger(0);
+  int second = Parameters.NextParameterAsInteger(0);
+  timestamp = second;
+  timestamp += minute*60ul;
+  timestamp += hour*60ul*60ul;
+  freezeTime = true;
+}
+
+/*
+  This function defines the UnfreezeTime Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #UnfreezeTime;
+
+  resumes the time to the current RTC time.
+*/
+void Cmd_UnfreezeTime(CommandParameter &Parameters) {
+  freezeTime = false;
+}
+
+
+void UpdateLightAO(uint32_t srDelay, uint32_t ssDelay, int maxBrightness, int arduinoPin, bool digital_out, int* currentBrightnessChX) {
   #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
     Serial.print(F("Channel 0 - "));
   #endif
@@ -615,8 +686,10 @@ void UpdateLightAO(uint32_t srDelay, uint32_t ssDelay, int maxBrightness, int ar
     int brightness = maxBrightness*((timestamp-sunriseTime-srDelay)%one_day)/LightCfg.Data.SunriseDuration;
     if (digital_out) {
       digitalWrite(arduinoPin, LOW);
+      *currentBrightnessChX = LOW;
     } else {
       analogWrite(arduinoPin, brightness);
+      *currentBrightnessChX = brightness;
     }
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Sunrise: "));
@@ -628,8 +701,10 @@ void UpdateLightAO(uint32_t srDelay, uint32_t ssDelay, int maxBrightness, int ar
   {
     if(digital_out) {
       digitalWrite(arduinoPin, HIGH);
+      *currentBrightnessChX = HIGH;
     } else {
       analogWrite(arduinoPin, maxBrightness);
+      *currentBrightnessChX = maxBrightness;
     }
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Day:     "));
@@ -642,8 +717,10 @@ void UpdateLightAO(uint32_t srDelay, uint32_t ssDelay, int maxBrightness, int ar
     int brightness = maxBrightness-(maxBrightness*((timestamp-LightCfg.Data.SunsetTime-ssDelay)%one_day)/LightCfg.Data.SunsetDuration);
     if(digital_out){
       digitalWrite(arduinoPin, LOW);
+      *currentBrightnessChX = LOW;
     } else {
       analogWrite(arduinoPin, brightness);
+      *currentBrightnessChX = brightness;
     }
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Sunset:  "));
@@ -654,8 +731,10 @@ void UpdateLightAO(uint32_t srDelay, uint32_t ssDelay, int maxBrightness, int ar
   {
     if(digital_out) {
       digitalWrite(arduinoPin, LOW);
+      *currentBrightnessChX = LOW;
     } else {
       analogWrite(arduinoPin, 0);
+      *currentBrightnessChX = 0;
     }
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Night:    "));
@@ -667,9 +746,9 @@ void UpdateLightAO(uint32_t srDelay, uint32_t ssDelay, int maxBrightness, int ar
 
 void UpdateLightOutputs(){
   sunriseTime = (LightCfg.Data.SunsetTime-LightCfg.Data.LightDuration)%one_day;
-  UpdateLightAO(LightCfg.Data.SRDelayA0, LightCfg.Data.SSDelayA0, LightCfg.Data.MaxBrightness0, LIGHT_ANALOG_OUT_0, false);
-  UpdateLightAO(LightCfg.Data.SRDelayA1, LightCfg.Data.SSDelayA1, LightCfg.Data.MaxBrightness1, LIGHT_ANALOG_OUT_1, false);
-  UpdateLightAO(LightCfg.Data.SRDelayDO0, LightCfg.Data.SSDelayDO0, LightCfg.Data.MaxBrightness2, LIGHT_ANALOG_OUT_2, true);
+  UpdateLightAO(LightCfg.Data.SRDelayA0, LightCfg.Data.SSDelayA0, LightCfg.Data.MaxBrightness0, LIGHT_ANALOG_OUT_0, false, &currentBrightnessCh0);
+  UpdateLightAO(LightCfg.Data.SRDelayA1, LightCfg.Data.SSDelayA1, LightCfg.Data.MaxBrightness1, LIGHT_ANALOG_OUT_1, false, &currentBrightnessCh1);
+  UpdateLightAO(LightCfg.Data.SRDelayDO0, LightCfg.Data.SSDelayDO0, LightCfg.Data.MaxBrightness2, LIGHT_ANALOG_OUT_2, true, &currentBrightnessCh2);
 }
 
 
@@ -818,6 +897,7 @@ void UpdateFeedMotor() {
 }
 
 
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
@@ -839,6 +919,9 @@ void setup() {
   SerialCommandHandler.AddCommand(F("GetWaterFlushDuration"), Cmd_GetWaterFlushDuration);
   SerialCommandHandler.AddCommand(F("SetGateOffsets"), Cmd_SetGateOffsets);
   SerialCommandHandler.AddCommand(F("SetFeedMotorTimeoutMillis"), Cmd_SetFeedMotorTimeoutMillis);
+  SerialCommandHandler.AddCommand(F("GetCurrentLightBrightness"), Cmd_GetCurrentLightBrightness);
+  SerialCommandHandler.AddCommand(F("FreezeTimeTo"), Cmd_FreezeTimeTo);
+  SerialCommandHandler.AddCommand(F("UnfreezeTime"), Cmd_UnfreezeTime);
 
 
   Controllino_RTC_init(0);
@@ -882,9 +965,11 @@ void loop() {
       uint32_t controllino_min = Controllino_GetMinute();
       uint32_t controllino_hour = Controllino_GetHour();
       #if MOCK_CLOCK == 0
-        timestamp = controllino_sec;
-        timestamp += controllino_min*60ul;
-        timestamp += controllino_hour*60ul*60ul;
+        if( ! freezeTime) {
+          timestamp = controllino_sec;
+          timestamp += controllino_min*60ul;
+          timestamp += controllino_hour*60ul*60ul;
+        }
       #elif MOCK_CLOCK == 1
         timestamp = millis()/10ul%one_day;
         if((timestamp/60ul/60ul) != timestamp_hour){

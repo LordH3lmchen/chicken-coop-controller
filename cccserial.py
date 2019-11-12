@@ -81,7 +81,24 @@ class ChickenCoopControllerSerial(serial.Serial):
         self.write(Template("#SetGateOffsets $sr_offset $ss_offset;")
                     .substitute(dict(sr_offset=sunrise_open_offset, ss_offset=sunsset_close_offset))
                     .encode('ASCII'))
-        
+
+    def freeze_time_to(self, hour, minute, second):
+        assert 0 <= hour <= 23, "hour (%s)is not beween 0 and 23" % hour
+        assert 0 <= minute <= 59, "hour (%s)is not beween 0 and 23" % minute
+        assert 0 <= second <= 59, "hour (%s)is not beween 0 and 23" % second
+        self.write(Template("#FreezeTimeTo $hour $minute $second;")
+                    .substitute(dict(hour=hour, minute=minute, second=second))
+                    .encode('ASCII'))
+
+    def unfreeze_time(self):
+        self.write('#UnfreezeTime;')
+
+    def get_current_light_brightness(self, channel):
+        assert 0<= channel <= 2, "channel %s is not valid" % channel
+        self.write(Template("#GetCurrentLightBrightness $channel;")
+                    .substitute(dict(channel=channel))
+                    .encode('ASCII'))
+        return self.readlines()
 
 def createParser():
     parser = argparse.ArgumentParser(
