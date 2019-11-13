@@ -100,6 +100,20 @@ class ChickenCoopControllerSerial(serial.Serial):
                     .encode('ASCII'))
         return self.readlines()
 
+    def move_gate_manual(self, direction):
+        assert direction == True or direction == False
+        if direction == True:
+            cmd_parameter = 1
+        else:
+            cmd_parameter = 0
+        self.write(Template("#MoveGateManual $status;")
+                    .substitute(dict(status=cmd_parameter))
+                    .encode('ASCII'))
+
+    def move_gave_automatic(self):
+        self.write("#MoveGateAutomatic;".encode('ASCII'))
+
+
 def createParser():
     parser = argparse.ArgumentParser(
                 description="connects to the given alarm system via serial.\

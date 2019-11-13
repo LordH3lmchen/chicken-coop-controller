@@ -103,6 +103,7 @@ unsigned long motorSwitchedOnMillis = 0;
 bool alarmState = false;
 bool feedAlarmState = false;
 bool freezeTime = false;
+bool manualGateControl = false;
 int currentBrightnessCh0 = 0;
 int currentBrightnessCh1 = 0;
 int currentBrightnessCh2 = 0;
@@ -112,7 +113,7 @@ EEPROMStore<NestControllerConfiguration> NestCfg;
 EEPROMStore<WaterControllerConfiguration> WaterCfg;
 EEPROMStore<GateControllerConfiguration> GateCfg;
 EEPROMStore<FeedControllerConfiguration> FeedCfg;
-CommandHandler<20, 35, 7> SerialCommandHandler(Serial,'#',';');
+CommandHandler<22, 35, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
 
 #if MOCK_CLOCK == 1
@@ -660,6 +661,46 @@ void Cmd_FreezeTimeTo(CommandParameter &Parameters) {
   freezeTime = true;
 }
 
+
+/*
+  This function defines the MoveGateManual Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #MoveGateManual;
+
+  resumes the time to the current RTC time.
+*/
+void Cmd_MoveGateManual(CommandParameter &Parameters) {
+  int userinput = Parameters.NextParameterAsInteger(0);
+  manualGateControl = true;
+  if( userinput == 1) {
+    digitalWrite(CHICKEN_GATE_DIGITAL_OUT, HIGH);
+  }
+  else if (userinput == 0) {
+    digitalWrite(CHICKEN_GATE_DIGITAL_OUT, LOW);
+  }
+}
+
+
+/*
+  This function defines the MoveGateAutomatic Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #MoveGateAutomatic;
+
+  resumes the time to the current RTC time.
+*/
+void Cmd_MoveGateAutomatic(CommandParameter &Parameters) {
+  manualGateControl = false;
+}
+
+
 /*
   This function defines the UnfreezeTime Command
 
@@ -674,6 +715,7 @@ void Cmd_FreezeTimeTo(CommandParameter &Parameters) {
 void Cmd_UnfreezeTime(CommandParameter &Parameters) {
   freezeTime = false;
 }
+
 
 
 void UpdateLightAO(uint32_t srDelay, uint32_t ssDelay, int maxBrightness, int arduinoPin, bool digital_out, int* currentBrightnessChX) {
@@ -777,7 +819,9 @@ void UpdateNestOutputs() { //HIGH == Nest UP; LOW == Nest Down;
 void UpdateGateOutput() { //HIGH == Gate open; LOW == Gate closed
   uint32_t gateOpenTime = (LightCfg.Data.SunsetTime - LightCfg.Data.LightDuration + GateCfg.Data.GateOpenSunriseOffset)%one_day;
   uint32_t gateCloseTime = (LightCfg.Data.SunsetTime + GateCfg.Data.GateCloseSunsetOffset)%one_day;
-  UpdateOutputTimeBased(gateOpenTime, gateCloseTime, CHICKEN_GATE_DIGITAL_OUT);
+  if(! manualGateControl) {
+    UpdateOutputTimeBased(gateOpenTime, gateCloseTime, CHICKEN_GATE_DIGITAL_OUT);
+  }
 }
 
 
@@ -922,6 +966,8 @@ void setup() {
   SerialCommandHandler.AddCommand(F("GetCurrentLightBrightness"), Cmd_GetCurrentLightBrightness);
   SerialCommandHandler.AddCommand(F("FreezeTimeTo"), Cmd_FreezeTimeTo);
   SerialCommandHandler.AddCommand(F("UnfreezeTime"), Cmd_UnfreezeTime);
+  SerialCommandHandler.AddCommand(F("MoveGateAutomatic"), Cmd_MoveGateAutomatic);
+  SerialCommandHandler.AddCommand(F("MoveGateManual"), Cmd_MoveGateManual);
 
 
   Controllino_RTC_init(0);
