@@ -100,18 +100,24 @@ class ChickenCoopControllerSerial(serial.Serial):
                     .encode('ASCII'))
         return self.readlines()
 
-    def move_gate_manual(self, direction):
-        assert direction == True or direction == False
-        if direction == True:
-            cmd_parameter = 1
+    def move_gate(self, state):
+        assert state == True or state == False, "State can be True of False"
+        if state:
+            serial_cmd_parameter = 1
         else:
-            cmd_parameter = 0
-        self.write(Template("#MoveGateManual $status;")
-                    .substitute(dict(status=cmd_parameter))
+            serial_cmd_parameter = 0
+        self.write('#MoveGateManual {};'
+                    .format(serial_cmd_parameter)
                     .encode('ASCII'))
 
-    def move_gave_automatic(self):
-        self.write("#MoveGateAutomatic;".encode('ASCII'))
+    def open_gate(self):
+        self.move_gate(True)
+    
+    def close_gate(self):
+        self.move_gate(False)
+
+    def move_gate_automatic(self):
+        self.write('#MoveGateAutomatic;'.encode('ASCII'))
 
 
 def createParser():

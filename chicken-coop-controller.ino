@@ -53,6 +53,7 @@ struct FeedControllerConfiguration
   }
 };
 
+
 struct LightControllerConfiguration
 {
   uint32_t SunsetTime;
