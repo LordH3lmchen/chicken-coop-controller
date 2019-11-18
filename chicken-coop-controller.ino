@@ -2,7 +2,7 @@
 * Changes the DEBUG Output.
 * Right now it is a integer that represents a Level.
 */
-#define DEBUG_OUTPUT 0
+#define DEBUG_OUTPUT 5
 /*
 * This disables the clock and mocks it with millis(), for testing purposes
 * it is usefull. 1 day runs in about 864s (14min and 24s)
@@ -15,6 +15,8 @@
 #include "CommandHandler.h"
 #include "EEPROMStore.h"
 #include "ArduinoTimer.h"
+#include "Dusk2Dawn.h"
+
 #if defined(CONTROLLINO_MAXI)
   #include "Configuration_Controllino_Maxi.h"
 #elif defined(CONTROLLINO_MAXI_AUTOMATION)
@@ -69,6 +71,11 @@ struct LightControllerConfiguration
   uint32_t SRDelayA0;
   uint32_t SRDelayA1;
   uint32_t SRDelayDO0;
+  bool automaticSunsetTime;
+  bool daylightsavingtime;
+  float coopLatitude;
+  float coopLongitude;
+  float timezone;
   void Reset() {
     SunsetTime = 17ul*60ul*60ul;
     SunsetDuration = 75ul*60ul;
@@ -83,6 +90,10 @@ struct LightControllerConfiguration
     SRDelayA0 = 0ul;
     SRDelayA1 = 10ul*60ul;
     SRDelayDO0 = 20ul*60ul;
+    automaticSunsetTime = false;
+    daylightsavingtime = false;
+    coopLatitude = 48.375142;
+    coopLongitude =  16.091800;
   }
 };
 
@@ -108,14 +119,20 @@ bool manualGateControl = false;
 int currentBrightnessCh0 = 0;
 int currentBrightnessCh1 = 0;
 int currentBrightnessCh2 = 0;
+char currentDay;
 
 EEPROMStore<LightControllerConfiguration> LightCfg;
 EEPROMStore<NestControllerConfiguration> NestCfg;
 EEPROMStore<WaterControllerConfiguration> WaterCfg;
 EEPROMStore<GateControllerConfiguration> GateCfg;
 EEPROMStore<FeedControllerConfiguration> FeedCfg;
-CommandHandler<22, 35, 7> SerialCommandHandler(Serial,'#',';');
+CommandHandler<26, 35, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
+/* 3464 Zaina, Austria
+48°22'30.5"N 16°05'30.5"E
+48.375142, 16.091800
+*/
+Dusk2Dawn coopLocation = Dusk2Dawn(48.375142, 16.091800, 1.0);
 
 #if MOCK_CLOCK == 1
   unsigned int timestamp_hour = 0;
@@ -217,6 +234,93 @@ void Cmd_SetSunset(CommandParameter &Parameters)
   LightCfg.Data.SunsetTime = (ss_hour*60ul*60ul+ss_minute*60ul)%one_day;
   LightCfg.Save();
 }
+
+
+/*
+  This function defines the SetLocation Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetLocation  [latitude] [longitude]
+
+  Sets the postion to the given gps coordinates
+*/
+void Cmd_SetLocation(CommandParameter &Parameters) {
+  float latitude = (float) Parameters.NextParameterAsDouble(0.0);
+  float longitude = (float) Parameters.NextParameterAsDouble(0.0);
+  LightCfg.Data.coopLatitude = latitude;
+  LightCfg.Data.coopLongitude = longitude;
+  LightCfg.Save();
+  coopLocation = Dusk2Dawn(LightCfg.Data.coopLatitude,
+                             LightCfg.Data.coopLongitude,
+                             LightCfg.Data.timezone);  
+}
+
+/*
+  This function defines the SetTimezone Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetTimezone  [timezone] 
+
+  Sets the timezone to the given value. expects a float.
+*/
+void Cmd_SetTimezone(CommandParameter &Parameters) {
+  float timezone = (float) Parameters.NextParameterAsDouble(0.0);
+  LightCfg.Data.timezone = timezone;
+  LightCfg.Save();
+  coopLocation = Dusk2Dawn(LightCfg.Data.coopLatitude,
+                             LightCfg.Data.coopLongitude,
+                             LightCfg.Data.timezone);  
+}
+
+
+/*
+  This function defines the AutomaticSunsetTime Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #AutomaticSunsetTime  [0]|[1] 
+
+  Enables or disables the automatic sunset time feature
+*/
+void Cmd_AutomaticSunsetTime(CommandParameter &Parameters) {
+  int userinput = Parameters.NextParameterAsInteger(1);
+  if(userinput == 1) {
+    LightCfg.Data.automaticSunsetTime = true;
+  } else {
+    LightCfg.Data.automaticSunsetTime = false;
+  }
+  LightCfg.Save();
+}
+
+/*
+  This function defines the Daylightsavingtime Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #Daylightsavingtime  [0]|[1] 
+
+  Enables or disables daylightsavingtime (to calculate the correct sunset)
+*/
+void Cmd_Daylightsavingtime(CommandParameter &Parameters) {
+  int userinput = Parameters.NextParameterAsInteger(1);
+  if(userinput == 1) {
+    LightCfg.Data.daylightsavingtime = true;
+  } else {
+    LightCfg.Data.daylightsavingtime = false;
+  }
+  LightCfg.Save();
+}
+
 
 
 /*
@@ -499,6 +603,21 @@ void Cmd_GetConfig(CommandParameter &Parameters)
   Parameters.GetSource().print(F("Light SunRiseDelayDO0="));
   Parameters.GetSource().print(LightCfg.Data.SRDelayDO0/60ul);
   Parameters.GetSource().println(F(" minutes"));
+  Parameters.GetSource().print(F("Light coopLatitude="));
+  Parameters.GetSource().print(LightCfg.Data.coopLatitude);
+  Parameters.GetSource().println(F(" deg"));
+  Parameters.GetSource().print(F("Light coopLongitude="));
+  Parameters.GetSource().print(LightCfg.Data.coopLongitude);
+  Parameters.GetSource().println(F(" deg"));
+  Parameters.GetSource().print(F("Light timezone="));
+  Parameters.GetSource().print(LightCfg.Data.timezone);
+  Parameters.GetSource().println(F(" hours"));
+  Parameters.GetSource().print(F("Light daylightsavingtime="));
+  Parameters.GetSource().print(LightCfg.Data.daylightsavingtime);
+  Parameters.GetSource().println(F(" bool"));
+  Parameters.GetSource().print(F("Light automaticSunsetTime="));
+  Parameters.GetSource().print(LightCfg.Data.automaticSunsetTime);
+  Parameters.GetSource().println(F(" bool"));
   Parameters.GetSource().print(F("FeedMotorTimeoutMillis="));
   Parameters.GetSource().print(FeedCfg.Data.FeedMotorTimeoutMillis/1000ul);
   Parameters.GetSource().println(F(" seconds"));
@@ -969,7 +1088,10 @@ void setup() {
   SerialCommandHandler.AddCommand(F("UnfreezeTime"), Cmd_UnfreezeTime);
   SerialCommandHandler.AddCommand(F("MoveGateAutomatic"), Cmd_MoveGateAutomatic);
   SerialCommandHandler.AddCommand(F("MoveGateManual"), Cmd_MoveGateManual);
-
+  SerialCommandHandler.AddCommand(F("SetLocation"), Cmd_SetLocation);
+  SerialCommandHandler.AddCommand(F("SetTimezone"), Cmd_SetTimezone);
+  SerialCommandHandler.AddCommand(F("AutomaticSunsetTime"), Cmd_AutomaticSunsetTime);
+  SerialCommandHandler.AddCommand(F("Daylightsavingtime"), Cmd_Daylightsavingtime);
 
   Controllino_RTC_init(0);
   //Load the configs
@@ -996,10 +1118,29 @@ void setup() {
 
   Serial.print("chicken-coop-light-controller-");
   Serial.println(VERSION);
+
+  currentDay = Controllino_GetDay();
+  if (LightCfg.Data.automaticSunsetTime) {
+    coopLocation = Dusk2Dawn(LightCfg.Data.coopLatitude,
+                             LightCfg.Data.coopLongitude,
+                             LightCfg.Data.timezone);
+  }
+  #if DEBUG_OUTPUT == 5
+    int sunsetMin = coopLocation.sunset(Controllino_GetYear(),
+                                        Controllino_GetMonth(),
+                                        Controllino_GetDay(),
+                                        LightCfg.Data.daylightsavingtime);
+    Serial.print("sunsetMin = ");
+    Serial.println(sunsetMin);
+    char timeStr[6];
+    Dusk2Dawn::min2str(timeStr, sunsetMin);
+    Serial.println(timeStr);
+  #endif
 }
 
 void loop() {
   SerialCommandHandler.Process();
+  
   #if MOCK_CLOCK == 1 // A Day runs 100 times as fast.
     if(UpdateAoTimer.TimePassed_Milliseconds(10))
   #elif DEBUG_OUTPUT == 2 || DEBUG_OUTPUT == 1
@@ -1008,32 +1149,32 @@ void loop() {
     if(UpdateAoTimer.TimePassed_Milliseconds(100)) //faster in production
   #endif
   {
-      uint32_t controllino_sec = Controllino_GetSecond();
-      uint32_t controllino_min = Controllino_GetMinute();
-      uint32_t controllino_hour = Controllino_GetHour();
-      #if MOCK_CLOCK == 0
-        if( ! freezeTime) {
-          timestamp = controllino_sec;
-          timestamp += controllino_min*60ul;
-          timestamp += controllino_hour*60ul*60ul;
-        }
-      #elif MOCK_CLOCK == 1
-        timestamp = millis()/10ul%one_day;
-        if((timestamp/60ul/60ul) != timestamp_hour){
-            timestamp_hour = timestamp/60/60;
-            Serial.print(timestamp_hour);
-            Serial.println(":00");
-        }
-      #endif
-      #if DEBUG_OUTPUT == 2 || DEBUG_OUTPUT == 4
-        Serial.print("timestamp=");
-        Serial.println(timestamp);
-      #endif
-      UpdateLightOutputs();
-      UpdateNestOutputs();
-      UpdateWaterOutputs();
-      UpdateGateOutput();
-    }
+    uint32_t controllino_sec = Controllino_GetSecond();
+    uint32_t controllino_min = Controllino_GetMinute();
+    uint32_t controllino_hour = Controllino_GetHour();
+    #if MOCK_CLOCK == 0
+      if( ! freezeTime) {
+        timestamp = controllino_sec;
+        timestamp += controllino_min*60ul;
+        timestamp += controllino_hour*60ul*60ul;
+      }
+    #elif MOCK_CLOCK == 1
+      timestamp = millis()/10ul%one_day;
+      if((timestamp/60ul/60ul) != timestamp_hour){
+          timestamp_hour = timestamp/60/60;
+          Serial.print(timestamp_hour);
+          Serial.println(":00");
+      }
+    #endif
+    #if DEBUG_OUTPUT == 2 || DEBUG_OUTPUT == 4
+      Serial.print("timestamp=");
+      Serial.println(timestamp);
+    #endif
+    UpdateLightOutputs();
+    UpdateNestOutputs();
+    UpdateWaterOutputs();
+    UpdateGateOutput();
+  }
   //This runs as frequent as possible
   UpdateFeedMotor();
   if( alarmState || feedAlarmState ) { 
@@ -1045,5 +1186,18 @@ void loop() {
   else {
     if( digitalRead(ALARM_OUT) == HIGH )
       digitalWrite(ALARM_OUT, LOW);
+  }
+  if(currentDay != Controllino_GetDay() && LightCfg.Data.automaticSunsetTime) {
+    currentDay = Controllino_GetDay();
+    uint32_t sunsetMin = (uint32_t) coopLocation.sunset(Controllino_GetYear(),
+                                        Controllino_GetMonth(),
+                                        Controllino_GetDay(),
+                                        LightCfg.Data.daylightsavingtime);
+    #if DEBUG_OUTPUT == 5
+      Serial.println("New Day");
+      Serial.print("sunsetMin = ");
+      Serial.println(sunsetMin);
+    #endif
+    LightCfg.Data.SunsetTime = sunsetMin * 60;
   }
 }

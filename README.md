@@ -19,6 +19,9 @@ barn over an analog out 0..10V.
  - [Controllino]('https://controllino.biz/')
    - [Controllino-Library]('https://github.com/CONTROLLINO-PLC/CONTROLLINO_Library')
 
+ - [Dusk2Dawn]('https://github.com/dmkishi/Dusk2Dawn')
+   The Version 1.0.1 doesn't compile on Linux. To compile the sketch on Linux clone the latest version from Github to your libraries folder. 
+
 
 # PLC Parameters and Comands
 
