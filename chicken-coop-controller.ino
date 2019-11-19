@@ -72,6 +72,7 @@ struct LightControllerConfiguration
   uint32_t SRDelayA1;
   uint32_t SRDelayDO0;
   bool automaticSunsetTime;
+  uint32_t automaticSunsetOffset;
   bool daylightsavingtime;
   float coopLatitude;
   float coopLongitude;
@@ -91,6 +92,7 @@ struct LightControllerConfiguration
     SRDelayA1 = 10ul*60ul;
     SRDelayDO0 = 20ul*60ul;
     automaticSunsetTime = false;
+    automaticSunsetOffset = 60;
     daylightsavingtime = false;
     coopLatitude = 48.375142;
     coopLongitude =  16.091800;
@@ -300,6 +302,25 @@ void Cmd_AutomaticSunsetTime(CommandParameter &Parameters) {
   LightCfg.Save();
 }
 
+
+/*
+  This function defines the SetAutomaticSunsetOffset Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetAutomaticSunsetOffset [Offset]; 
+
+  Enables or disables the automatic sunset time feature
+*/
+void Cmd_SetAutomaticSunsetOffset(CommandParameter &Parameters) {
+  uint32_t userinput = (uint32_t) Parameters.NextParameterAsInteger(60);
+  LightCfg.Data.automaticSunsetOffset = userinput;
+  LightCfg.Save();
+}
+
+
 /*
   This function defines the Daylightsavingtime Command
 
@@ -320,7 +341,6 @@ void Cmd_Daylightsavingtime(CommandParameter &Parameters) {
   }
   LightCfg.Save();
 }
-
 
 
 /*
@@ -1092,6 +1112,7 @@ void setup() {
   SerialCommandHandler.AddCommand(F("SetTimezone"), Cmd_SetTimezone);
   SerialCommandHandler.AddCommand(F("AutomaticSunsetTime"), Cmd_AutomaticSunsetTime);
   SerialCommandHandler.AddCommand(F("Daylightsavingtime"), Cmd_Daylightsavingtime);
+  SerialCommandHandler.AddCommand(F("SetAutomaticSunsetOffset"), Cmd_SetAutomaticSunsetOffset);
 
   Controllino_RTC_init(0);
   //Load the configs
@@ -1193,6 +1214,7 @@ void loop() {
                                         Controllino_GetMonth(),
                                         Controllino_GetDay(),
                                         LightCfg.Data.daylightsavingtime);
+    sunsetMin += LightCfg.Data.automaticSunsetOffset;
     #if DEBUG_OUTPUT == 5
       Serial.println("New Day");
       Serial.print("sunsetMin = ");
