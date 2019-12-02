@@ -62,6 +62,7 @@ struct LightControllerConfiguration
   uint32_t SunsetDuration;
   uint32_t SunriseDuration;
   uint32_t LightDuration;
+  uint32_t AgeBasedLightDuration [26]; // 0 .. day 1 - 2 | 1 .. day 3-6 | 2 .. week 2 | 3 .. week3 | ... 
   int MaxBrightness0;
   int MaxBrightness1;
   int MaxBrightness2;
@@ -364,6 +365,33 @@ void Cmd_SetLightDuration(CommandParameter &Parameters)
   } else {
       LightCfg.Data.LightDuration = lightd_minutes*60ul+lightd_hours*60ul*60ul;
       LightCfg.Save();
+  }
+}
+
+
+/*
+  This function defines the SetLightDuration Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetLightDuration [hours] [minutes];
+
+  Sets the length of the day (in the chickehouse).
+*/
+void Cmd_SetAgeBasedLightDuration(CommandParameter &Parameters)
+{
+  int age = Parameters.NextParameter.NextParameterAsInteger(25);
+  uint32_t lightd_hours = Parameters.NextParameterAsInteger(9);
+  uint32_t lightd_minutes = Parameters.NextParameterAsInteger(30);
+  if(lightd_hours>15 || lightd_hours < 0 || lightd_minutes < 0 || lightd_minutes > 59 || age < 0 || age > 25){
+      Parameters.GetSource().println(F("Invalid light duration! "));
+      return;
+  } 
+  else {
+    LightCfg.Data.AgeBasedLightDuration[age] = lightd_minutes*60ul+lightd_hours*60ul*60ul;
+    LightCfg.Save();
   }
 }
 
