@@ -16,6 +16,7 @@
 #include "EEPROMStore.h"
 #include "ArduinoTimer.h"
 #include "Dusk2Dawn.h"
+#include "Time.h"
 
 #if defined(CONTROLLINO_MAXI)
   #include "Configuration_Controllino_Maxi.h"
@@ -62,6 +63,8 @@ struct LightControllerConfiguration
   uint32_t SunsetDuration;
   uint32_t SunriseDuration;
   uint32_t LightDuration;
+  bool AutomaticLightDuration;
+  time_t Birthday;
   uint32_t AgeBasedLightDuration [26]; // 0 .. day 1 - 2 | 1 .. day 3-6 | 2 .. week 2 | 3 .. week3 | ... 
   int MaxBrightness0;
   int MaxBrightness1;
@@ -83,6 +86,7 @@ struct LightControllerConfiguration
     SunsetDuration = 75ul*60ul;
     SunriseDuration = 30ul*60ul;
     LightDuration = 14ul*60ul*60ul;
+    AutomaticLightDuration = false;
     MaxBrightness0 = 229;
     MaxBrightness1 = 229;
     MaxBrightness2 = 95;
@@ -122,7 +126,7 @@ bool manualGateControl = false;
 int currentBrightnessCh0 = 0;
 int currentBrightnessCh1 = 0;
 int currentBrightnessCh2 = 0;
-char currentDay;
+char currentDay = 'x';
 
 EEPROMStore<LightControllerConfiguration> LightCfg;
 EEPROMStore<NestControllerConfiguration> NestCfg;
@@ -382,7 +386,7 @@ void Cmd_SetLightDuration(CommandParameter &Parameters)
 */
 void Cmd_SetAgeBasedLightDuration(CommandParameter &Parameters)
 {
-  int age = Parameters.NextParameter.NextParameterAsInteger(25);
+  int age = Parameters.NextParameterAsInteger(25);
   uint32_t lightd_hours = Parameters.NextParameterAsInteger(9);
   uint32_t lightd_minutes = Parameters.NextParameterAsInteger(30);
   if(lightd_hours>15 || lightd_hours < 0 || lightd_minutes < 0 || lightd_minutes > 59 || age < 0 || age > 25){
@@ -1109,6 +1113,9 @@ void UpdateFeedMotor() {
 }
 
 
+uint32_t calculateLightDuration() {
+  int age = 1; // TODO implement algorithm
+}
 
 void setup() {
   // put your setup code here, to run once:
@@ -1168,7 +1175,6 @@ void setup() {
   Serial.print("chicken-coop-light-controller-");
   Serial.println(VERSION);
 
-  currentDay = Controllino_GetDay();
   if (LightCfg.Data.automaticSunsetTime) {
     coopLocation = Dusk2Dawn(LightCfg.Data.coopLatitude,
                              LightCfg.Data.coopLongitude,
@@ -1186,6 +1192,7 @@ void setup() {
     Serial.println(timeStr);
   #endif
 }
+
 
 void loop() {
   SerialCommandHandler.Process();
@@ -1236,18 +1243,25 @@ void loop() {
     if( digitalRead(ALARM_OUT) == HIGH )
       digitalWrite(ALARM_OUT, LOW);
   }
-  if(currentDay != Controllino_GetDay() && LightCfg.Data.automaticSunsetTime) {
-    currentDay = Controllino_GetDay();
-    uint32_t sunsetMin = (uint32_t) coopLocation.sunset(Controllino_GetYear(),
-                                        Controllino_GetMonth(),
-                                        Controllino_GetDay(),
-                                        LightCfg.Data.daylightsavingtime);
-    sunsetMin += LightCfg.Data.automaticSunsetOffset;
-    #if DEBUG_OUTPUT == 5
+  if(currentDay != Controllino_GetDay() && LightCfg.Data.automaticSunsetTime) { // new day
+    #if DEBUG_OUTPUT == 5 
       Serial.println("New Day");
-      Serial.print("sunsetMin = ");
-      Serial.println(sunsetMin);
     #endif
-    LightCfg.Data.SunsetTime = sunsetMin * 60;
+    if(LightCfg.Data.automaticSunsetTime) {
+      currentDay = Controllino_GetDay();
+      uint32_t sunsetMin = (uint32_t) coopLocation.sunset(Controllino_GetYear(),
+                                          Controllino_GetMonth(),
+                                          Controllino_GetDay(),
+                                          LightCfg.Data.daylightsavingtime);
+      sunsetMin += LightCfg.Data.automaticSunsetOffset;
+      #if DEBUG_OUTPUT == 5
+        Serial.print("sunsetMin = ");
+        Serial.println(sunsetMin);
+      #endif
+      LightCfg.Data.SunsetTime = sunsetMin * 60;
+    }
+    if(LightCfg.Data.AutomaticLightDuration) {
+      LightCfg.Data.LightDuration = calculateLightDuration();
+    }
   }
 }
