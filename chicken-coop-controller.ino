@@ -16,7 +16,6 @@
 #include "EEPROMStore.h"
 #include "ArduinoTimer.h"
 #include "Dusk2Dawn.h"
-#include "Time.h"
 
 #if defined(CONTROLLINO_MAXI)
   #include "Configuration_Controllino_Maxi.h"
@@ -64,7 +63,7 @@ struct LightControllerConfiguration
   uint32_t SunriseDuration;
   uint32_t LightDuration;
   bool AutomaticLightDuration;
-  time_t Birthday;
+  uint16_t Birthday; //  number of days since 2000/01/01, valid for 2001..2099 
   uint32_t AgeBasedLightDuration [26]; // 0 .. day 1 - 2 | 1 .. day 3-6 | 2 .. week 2 | 3 .. week3 | ... 
   int MaxBrightness0;
   int MaxBrightness1;
@@ -86,7 +85,9 @@ struct LightControllerConfiguration
     SunsetDuration = 75ul*60ul;
     SunriseDuration = 30ul*60ul;
     LightDuration = 14ul*60ul*60ul;
-    AutomaticLightDuration = false;
+    AutomaticLightDuration = true;
+    //AgeBasedLightDuration [] =  {24,18,16,14,12,11,10,9,9,9,9,9,9,9,9,9,9,10,11,12,13,14,14,14,14,14}; //Lohmann Brown Classic //TODO implement reset
+    //AgeBasedLightIntensity = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25} //TODO Stub  
     MaxBrightness0 = 229;
     MaxBrightness1 = 229;
     MaxBrightness2 = 95;
@@ -113,6 +114,7 @@ struct WaterControllerConfiguration
     }
 };
 
+static  const uint8_t monthDays[]={31,28,31,30,31,30,31,31,30,31,30,31};
 uint32_t timestamp = 0ul;
 uint32_t sunriseTime;
 const uint32_t one_day = 24ul*60ul*60ul;
@@ -146,6 +148,21 @@ Dusk2Dawn coopLocation = Dusk2Dawn(48.375142, 16.091800, 1.0);
 #endif
 
 
+const uint8_t daysInMonth []  = { 31,28,31,30,31,30,31,31,30,31,30,31 };
+/* This function is taken from https://github.com/adafruit/RTClib */
+/* Released to the public domain! Enjoy! */
+/* number of days since 2000/01/01, valid for 2001..2099 */
+static uint16_t date2days(uint16_t y, uint8_t m, uint8_t d)
+{
+    if (y >= 2000)
+        y -= 2000;
+    uint16_t days = d;
+    for (uint8_t i = 1; i < m; ++i)
+        days += *(daysInMonth + i - 1);
+    if (m > 2 && y % 4 == 0)
+        ++days;
+    return days + 365 * y + (y + 3) / 4 - 1;
+}
 
 /*
   This function defines the SetFeedMotorTimeout Command
@@ -673,6 +690,7 @@ void Cmd_GetConfig(CommandParameter &Parameters)
   Parameters.GetSource().print(F("FeedMotorTimeoutMillis="));
   Parameters.GetSource().print(FeedCfg.Data.FeedMotorTimeoutMillis/1000ul);
   Parameters.GetSource().println(F(" seconds"));
+  //TODO implement Commands for Age based light duration
 
 }
 
@@ -1114,7 +1132,24 @@ void UpdateFeedMotor() {
 
 
 uint32_t calculateLightDuration() {
-  int age = 1; // TODO implement algorithm
+  uint16_t x = date2days(Controllino_GetYear(), Controllino_GetMonth(), Controllino_GetDay());
+  Serial.println(Controllino_GetYear());
+  Serial.println(Controllino_GetMonth());
+  Serial.println(Controllino_GetDay());
+  Serial.print("currentDay = "); Serial.println(currentDay);
+  Serial.print("birthday = "); Serial.println(LightCfg.Data.Birthday);
+  uint16_t age = currentDay - LightCfg.Data.Birthday; 
+  uint16_t week = age / 7;
+  int weekDay = (int) age % 7;
+  uint32_t lightDuration = 0;
+  lightDuration = ((LightCfg.Data.AgeBasedLightDuration[week] - LightCfg.Data.AgeBasedLightDuration[week+1])/7) * weekDay + LightCfg.Data.AgeBasedLightDuration[week];
+  
+  
+  Serial.print("lightDuration = "); Serial.println(lightDuration);
+  /* 
+  TODO implement algorithm & handle edge cases. 
+  (first week) last week and following weeks.
+  */
 }
 
 void setup() {
@@ -1179,6 +1214,9 @@ void setup() {
     coopLocation = Dusk2Dawn(LightCfg.Data.coopLatitude,
                              LightCfg.Data.coopLongitude,
                              LightCfg.Data.timezone);
+  }
+  if (LightCfg.Data.AutomaticLightDuration) {
+    calculateLightDuration();
   }
   #if DEBUG_OUTPUT == 5
     int sunsetMin = coopLocation.sunset(Controllino_GetYear(),
