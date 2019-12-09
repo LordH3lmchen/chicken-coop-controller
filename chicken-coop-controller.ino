@@ -473,7 +473,7 @@ void Cmd_SetBirthday(CommandParameter &Parameters)
   
 
   Syntax off the serial command:
-  #Cmd_AutomaticLightDuration 0|1;
+  #AutomaticLightDuration 0|1;
 
   Sets the length of the day (in the chickehouse).
 */
@@ -1291,8 +1291,10 @@ void setup() {
   SerialCommandHandler.AddCommand(F("AutomaticSunsetTime"), Cmd_AutomaticSunsetTime);
   SerialCommandHandler.AddCommand(F("Daylightsavingtime"), Cmd_Daylightsavingtime);
   SerialCommandHandler.AddCommand(F("SetAutomaticSunsetOffset"), Cmd_SetAutomaticSunsetOffset);
+  SerialCommandHandler.AddCommand(F("AutomaticLightDuration"), Cmd_AutomaticLightDuration);
   SerialCommandHandler.AddCommand(F("SetAgeBasedLightDuration"), Cmd_SetAgeBasedLightDuration);
   SerialCommandHandler.AddCommand(F("SetBirthday"), Cmd_SetBirthday);
+  
 
 
   Controllino_RTC_init(0);
