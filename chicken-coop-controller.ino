@@ -112,8 +112,7 @@ struct LightControllerConfiguration
     AgeBasedLightDuration [22] = 60ul * 60ul * 14ul;
     AgeBasedLightDuration [23] = 60ul * 60ul * 14ul;
     AgeBasedLightDuration [24] = 60ul * 60ul * 14ul;
-    AgeBasedLightDuration [25] = 60ul * 60ul * 14ul;
-    //AgeBasedLightIntensity = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25} //TODO Stub  
+    AgeBasedLightDuration [25] = 60ul * 60ul * 14ul; 
     MaxBrightness0 = 229;
     MaxBrightness1 = 229;
     MaxBrightness2 = 95;
@@ -189,6 +188,12 @@ static uint16_t date2days(uint16_t y, uint8_t m, uint8_t d)
       ++days;
   return days + 365 * y + (y + 3) / 4 - 1;
 }
+
+void UnknownMessageHandler()
+{
+  Serial.println(F("unknown command"));
+}
+
 
 /*
   This function defines the SetFeedMotorTimeout Command
@@ -775,9 +780,6 @@ void Cmd_GetConfig(CommandParameter &Parameters)
     Parameters.GetSource().print(F(", "));
     }
   Parameters.GetSource().println(F(" }"));
-
-  //TODO implement Commands for Age based light duration
-
 }
 
 /*
@@ -1263,6 +1265,7 @@ uint32_t calculateLightDuration() {
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
+  SerialCommandHandler.SetDefaultHandler(UnknownMessageHandler); 
   //AddCommands to theHandler 
   SerialCommandHandler.AddCommand(F("GetClock"), Cmd_GetConfig);
   SerialCommandHandler.AddCommand(F("GetConfig"), Cmd_GetConfig);
@@ -1294,6 +1297,7 @@ void setup() {
   SerialCommandHandler.AddCommand(F("AutomaticLightDuration"), Cmd_AutomaticLightDuration);
   SerialCommandHandler.AddCommand(F("SetAgeBasedLightDuration"), Cmd_SetAgeBasedLightDuration);
   SerialCommandHandler.AddCommand(F("SetBirthday"), Cmd_SetBirthday);
+
   
 
 
