@@ -382,7 +382,7 @@ void Cmd_SetLightDuration(CommandParameter &Parameters)
 */
 void Cmd_SetAgeBasedLightDuration(CommandParameter &Parameters)
 {
-  int age = Parameters.NextParameter.NextParameterAsInteger(25);
+  int age = Parameters.NextParameterAsInteger(25);
   uint32_t lightd_hours = Parameters.NextParameterAsInteger(9);
   uint32_t lightd_minutes = Parameters.NextParameterAsInteger(30);
   if(lightd_hours>15 || lightd_hours < 0 || lightd_minutes < 0 || lightd_minutes > 59 || age < 0 || age > 25){
