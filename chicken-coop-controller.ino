@@ -2,7 +2,7 @@
 * Changes the DEBUG Output.
 * Right now it is a integer that represents a Level.
 */
-#define DEBUG_OUTPUT 0
+#define DEBUG_OUTPUT 5
 /*
 * This disables the clock and mocks it with millis(), for testing purposes
 * it is usefull. 1 day runs in about 864s (14min and 24s)
@@ -21,6 +21,8 @@
   #include "Configuration_Controllino_Maxi.h"
 #elif defined(CONTROLLINO_MAXI_AUTOMATION)
   #include "Configuration_Controllino_Maxi_Automation.h"
+#elif defined(CONTROLLINO_MEGA)
+  #include "Configuration_Controllino_Mega.h"
 #else 
   #error Please, select one of the supported CONTROLLINO variants in Tools->Board
 #endif
@@ -116,9 +118,9 @@ struct LightControllerConfiguration
     MaxBrightness0 = 229;
     MaxBrightness1 = 229;
     MaxBrightness2 = 95;
-    SSDelayA0 = 0ul;
-    SSDelayA1 = 10ul*60ul;
-    SSDelayDO0 = 20ul*60ul;
+    SSDelayA0 = 10ul*60ul;
+    SSDelayA1 = 20ul*60ul;
+    SSDelayDO0 = 0ul*60ul;
     SRDelayA0 = 0ul;
     SRDelayA1 = 10ul*60ul;
     SRDelayDO0 = 20ul*60ul;
@@ -160,7 +162,7 @@ EEPROMStore<NestControllerConfiguration> NestCfg;
 EEPROMStore<WaterControllerConfiguration> WaterCfg;
 EEPROMStore<GateControllerConfiguration> GateCfg;
 EEPROMStore<FeedControllerConfiguration> FeedCfg;
-CommandHandler<29, 35, 7> SerialCommandHandler(Serial,'#',';');
+CommandHandler<32, 35, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
 /* 3464 Zaina, Austria
 48°22'30.5"N 16°05'30.5"E
@@ -298,7 +300,7 @@ void Cmd_SetSunset(CommandParameter &Parameters)
   
 
   Syntax off the serial command:
-  #SetLocation  [latitude] [longitude]
+  #SetLocation  [latitude] [longitude];
 
   Sets the postion to the given gps coordinates
 */
@@ -320,7 +322,7 @@ void Cmd_SetLocation(CommandParameter &Parameters) {
   
 
   Syntax off the serial command:
-  #SetTimezone  [timezone] 
+  #SetTimezone  [timezone];
 
   Sets the timezone to the given value. expects a float.
 */
@@ -341,7 +343,7 @@ void Cmd_SetTimezone(CommandParameter &Parameters) {
   
 
   Syntax off the serial command:
-  #AutomaticSunsetTime  [0]|[1] 
+  #AutomaticSunsetTime  [0]|[1];
 
   Enables or disables the automatic sunset time feature
 */
@@ -445,6 +447,7 @@ void Cmd_SetAgeBasedLightDuration(CommandParameter &Parameters)
     LightCfg.Data.AgeBasedLightDuration[age] = lightd_minutes*60ul+lightd_hours*60ul*60ul;
     LightCfg.Save();
   }
+  LightCfg.Data.LightDuration = calculateLightDuration();
 }
 
 
@@ -467,6 +470,7 @@ void Cmd_SetBirthday(CommandParameter &Parameters)
   uint8_t  day = Parameters.NextParameterAsInteger(25);
   LightCfg.Data.Birthday = date2days(year, month, day);
   LightCfg.Save();
+  LightCfg.Data.LightDuration = calculateLightDuration();
 }
 
 
@@ -492,6 +496,7 @@ void  Cmd_AutomaticLightDuration(CommandParameter &Parameters)
     LightCfg.Data.AutomaticLightDuration = true;
   }
   LightCfg.Save();
+  LightCfg.Data.LightDuration = calculateLightDuration();
 }
 
 
@@ -1237,8 +1242,8 @@ uint32_t calculateLightDuration() {
     week = 24;
   }
   else {
-    // handling rising and falling light duration with uint32_t
-    if (LightCfg.Data.AgeBasedLightDuration[week]<LightCfg.Data.AgeBasedLightDuration[week+1]) {
+    // handling rising and falling light duration with uint32_t (unsigned integer)
+    if (LightCfg.Data.AgeBasedLightDuration[week]<LightCfg.Data.AgeBasedLightDuration[week+1]) { 
       k = (LightCfg.Data.AgeBasedLightDuration[week+1] - LightCfg.Data.AgeBasedLightDuration[week])/7;
       lightDuration = LightCfg.Data.AgeBasedLightDuration[week] + k * weekDay;
     } else { // LightCfg.Data.AgeBasedLightDuration[week]>=LightCfg.Data.AgeBasedLightDuration[week+1]
@@ -1333,7 +1338,7 @@ void setup() {
                              LightCfg.Data.timezone);
   }
   if (LightCfg.Data.AutomaticLightDuration) {
-    calculateLightDuration();
+    LightCfg.Data.LightDuration = calculateLightDuration();
   }
   #if DEBUG_OUTPUT == 5
     int sunsetMin = coopLocation.sunset(Controllino_GetYear(),
