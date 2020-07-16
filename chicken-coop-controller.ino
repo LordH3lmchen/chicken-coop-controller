@@ -1101,7 +1101,7 @@ void UpdateFeedMotor() {
     feeding process a push button (opener) das to be connected to the sensor 
     in series. This will start the Motors for another round. Repeat till the 
     feeding process works again. So this code is than run when the Button is 
-    pushed ar the Sensor delivers a LOW signal.
+    pushed or the Sensor delivers a LOW signal.
     */
     digitalWrite(FEED_TRANSPORT_MOTOR_DO, LOW);
     feedAlarmState = false;
@@ -1161,6 +1161,7 @@ void setup() {
   pinMode(FEED_SENSOR_DI, INPUT);
   pinMode(FEED_TRANSPORT_MOTOR_DO, OUTPUT);
   pinMode(ALARM_OUT, OUTPUT);
+  pinMode(ALARM_SIRENE, OUTPUT);
 
   digitalWrite(NEST_DIGITAL_OUT, HIGH);
   digitalWrite(WATER_VALVE_DO, LOW);
@@ -1231,10 +1232,12 @@ void loop() {
     (Right now only feedAlarmState is used)*/
     if( digitalRead(ALARM_OUT) == LOW )
       digitalWrite(ALARM_OUT, HIGH);
+      digitalWrite(ALARM_SIRENE, HIGH);
   }
   else {
     if( digitalRead(ALARM_OUT) == HIGH )
       digitalWrite(ALARM_OUT, LOW);
+      digitalWrite(ALARM_SIRENE, LOW);
   }
   if(currentDay != Controllino_GetDay() && LightCfg.Data.automaticSunsetTime) {
     currentDay = Controllino_GetDay();
