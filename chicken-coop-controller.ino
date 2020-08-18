@@ -129,7 +129,7 @@ EEPROMStore<NestControllerConfiguration> NestCfg;
 EEPROMStore<WaterControllerConfiguration> WaterCfg;
 EEPROMStore<GateControllerConfiguration> GateCfg;
 EEPROMStore<FeedControllerConfiguration> FeedCfg;
-CommandHandler<26, 35, 7> SerialCommandHandler(Serial,'#',';');
+CommandHandler<40, 35, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
 /* 3464 Zaina, Austria
 48°22'30.5"N 16°05'30.5"E
@@ -238,6 +238,25 @@ void Cmd_SetSunset(CommandParameter &Parameters)
   LightCfg.Save();
 }
 
+/*
+  This function defines the GetSunset Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetSunset;
+
+  Gets the sunsset time and prints it out 
+*/
+void Cmd_GetSunset(CommandParameter &Parameters) {
+  Parameters.GetSource().print(F("#SetSunset "));
+  Parameters.GetSource().print(LightCfg.Data.SunsetTime/60ul/60ul);
+  Parameters.GetSource().print(F(" "));
+  Parameters.GetSource().print(LightCfg.Data.SunsetTime/60ul%60ul);
+  Parameters.GetSource().println(F(";"));
+}
+
 
 /*
   This function defines the SetLocation Command
@@ -259,6 +278,26 @@ void Cmd_SetLocation(CommandParameter &Parameters) {
   coopLocation = Dusk2Dawn(LightCfg.Data.coopLatitude,
                              LightCfg.Data.coopLongitude,
                              LightCfg.Data.timezone);  
+}
+
+
+/*
+  This function defines the GetLocation Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #GetLocation;
+
+  Gets the location prints it out 
+*/
+void Cmd_GetLocation(CommandParameter &Parameters) {
+  Parameters.GetSource().print(F("#GetLocation "));
+  Parameters.GetSource().print(LightCfg.Data.coopLatitude);
+  Parameters.GetSource().print(F(" "));
+  Parameters.GetSource().print(LightCfg.Data.coopLatitude);
+  Parameters.GetSource().println(F(";"));
 }
 
 /*
@@ -283,17 +322,35 @@ void Cmd_SetTimezone(CommandParameter &Parameters) {
 
 
 /*
-  This function defines the AutomaticSunsetTime Command
+  This function defines the GetTimezone Command
 
   Parameters: The cmdArguments
   
 
   Syntax off the serial command:
-  #AutomaticSunsetTime  [0]|[1] 
+  #GetTimezone;
+
+  Gets the timezone prints it out 
+*/
+void Cmd_GetTimezone(CommandParameter &Parameters) {
+  Parameters.GetSource().print(F("#SetLocation "));
+  Parameters.GetSource().print(LightCfg.Data.timezone);
+  Parameters.GetSource().println(F(";"));
+}
+
+
+/*
+  This function defines the SetAutomaticSunsetTime Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #AutomaticSunsetTime  [0]|[1];
 
   Enables or disables the automatic sunset time feature
 */
-void Cmd_AutomaticSunsetTime(CommandParameter &Parameters) {
+void Cmd_SetAutomaticSunsetTime(CommandParameter &Parameters) {
   int userinput = Parameters.NextParameterAsInteger(1);
   if(userinput == 1) {
     LightCfg.Data.automaticSunsetTime = true;
@@ -301,6 +358,29 @@ void Cmd_AutomaticSunsetTime(CommandParameter &Parameters) {
     LightCfg.Data.automaticSunsetTime = false;
   }
   LightCfg.Save();
+}
+
+
+/*
+  This function defines the GetAutomaticSunsetTime Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #GetAutomaticSunsetTime;
+
+  Prints the AutomaticSunset configuration.
+*/
+void Cmd_GetAutomaticSunsetTime(CommandParameter &Parameters) {
+  Parameters.GetSource().print(F("#AutomaticSunsetTime "));
+  if(LightCfg.Data.automaticSunsetTime) {
+    Parameters.GetSource().print(1);
+  } 
+  else {
+    Parameters.GetSource().print(0);
+  }
+  Parameters.GetSource().println(F(";"));
 }
 
 
@@ -323,6 +403,24 @@ void Cmd_SetAutomaticSunsetOffset(CommandParameter &Parameters) {
 
 
 /*
+  This function defines the GetAutomaticSunsetOffset Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #GetAutomaticSunsetOffset; 
+
+  prints automatic sunset time feature setting
+*/
+void Cmd_GetAutomaticSunsetOffset(CommandParameter &Parameters) {
+  Parameters.GetSource().print(F("#SetAutomaticSunsetOffset "));
+  Parameters.GetSource().print(LightCfg.Data.automaticSunsetOffset);
+  Parameters.GetSource().println(F(";"));
+}
+
+
+/*
   This function defines the Daylightsavingtime Command
 
   Parameters: The cmdArguments
@@ -333,7 +431,7 @@ void Cmd_SetAutomaticSunsetOffset(CommandParameter &Parameters) {
 
   Enables or disables daylightsavingtime (to calculate the correct sunset)
 */
-void Cmd_Daylightsavingtime(CommandParameter &Parameters) {
+void Cmd_SetDaylightsavingtime(CommandParameter &Parameters) {
   int userinput = Parameters.NextParameterAsInteger(1);
   if(userinput == 1) {
     LightCfg.Data.daylightsavingtime = true;
@@ -341,6 +439,29 @@ void Cmd_Daylightsavingtime(CommandParameter &Parameters) {
     LightCfg.Data.daylightsavingtime = false;
   }
   LightCfg.Save();
+}
+
+
+/*
+  This function defines the GetDaylightsavingtime Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #GetDaylightsavingtime; 
+
+  prints daylightsavingtime setting
+*/
+void Cmd_GetDaylightsavingtime(CommandParameter &Parameters) {
+  Parameters.GetSource().print("#SetDaylightsavingtime ");
+  if(LightCfg.Data.daylightsavingtime){
+    Parameters.GetSource().print(1);
+  }
+  else {
+    Parameters.GetSource().print(0);
+  }
+  Parameters.GetSource().println(";");
 }
 
 
@@ -370,13 +491,33 @@ void Cmd_SetLightDuration(CommandParameter &Parameters)
 
 
 /*
+  This function defines the GetLightDuration Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #GetLightDuration;
+
+  prints the length of the day setting.
+*/
+void Cmd_GetLightDuration(CommandParameter &Parameters)
+{
+  Parameters.GetSource().print(F("#SetLightDuration "));
+  Parameters.GetSource().print(LightCfg.Data.LightDuration/60ul/60ul); //hours
+  Parameters.GetSource().print(F(" "));
+  Parameters.GetSource().print(LightCfg.Data.LightDuration/60ul%60ul); //minutes
+  Parameters.GetSource().println(F(";"));
+}
+
+/*
   This function defines the SetLightDuration Command
 
   Parameters: The cmdArguments
   
 
   Syntax off the serial command:
-  #SetLightDuration [hours] [minutes];
+  #SetAgeBasedLightDuration [age] [hours] [minutes];
 
   Sets the length of the day (in the chickehouse).
 */
@@ -393,6 +534,21 @@ void Cmd_SetAgeBasedLightDuration(CommandParameter &Parameters)
     LightCfg.Data.AgeBasedLightDuration[age] = lightd_minutes*60ul+lightd_hours*60ul*60ul;
     LightCfg.Save();
   }
+}
+
+void Cmd_GetAgeBasedLightDuration(CommandParameter &Parameters) {
+  Serial.print("Size of uint32 array[26] = ");
+  Serial.println(sizeof(LightCfg.Data.AgeBasedLightDuration));
+  /*
+  for(int age = 0; age < sizeof(LightCfg.Data.AgeBasedLightDuration); age++) {
+    Parameters.GetSource().print(F("#SetAgeBasedLightDuration "));
+    Parameters.GetSource().print(age);
+    Parameters.GetSource().print(F(" "));
+    Parameters.GetSource().print(LightCfg.Data.AgeBasedLightDuration[age]/60ul/60ul);
+    Parameters.GetSource().print(F(" "));
+    Parameters.GetSource().print(LightCfg.Data.AgeBasedLightDuration[age]/60ul%60ul);
+    Parameters.GetSource().print(F(";"));
+  }*/ //TODO test sizing (4 Bytes per value?)
 }
 
 
@@ -550,20 +706,25 @@ void Cmd_SetClock(CommandParameter &Parameters)
   }
 }
 
+void Cmd_GetConfig(CommandParameter &Parameters) {
+  /* TODO print out every configuration command */
+  Cmd_GetSunset(Parameters);
+  Parameters.GetSource().println(F("Not implemented yet!!!"));
+}
 
 /*
-  This function defines the GetConfig Command
+  This function defines the Status Command
 
   Parameters: The cmdArguments
   
 
   Syntax off the serial command:
-  #GetConfig;
+  #Status;
 
-  Prints out all the Settings and Parameters off the PLC as a human readable
+  Prints Settings and Parameters off the PLC as a human readable
   text.
 */
-void Cmd_GetConfig(CommandParameter &Parameters)
+void Cmd_Status(CommandParameter &Parameters)
 {
   #if MOCK_CLOCK
     Parameters.GetSource().println(F("MOCKED TIME!!!"));
@@ -669,7 +830,6 @@ void Cmd_GetConfig(CommandParameter &Parameters)
   Parameters.GetSource().print(F("FeedMotorTimeoutMillis="));
   Parameters.GetSource().print(FeedCfg.Data.FeedMotorTimeoutMillis/1000ul);
   Parameters.GetSource().println(F(" seconds"));
-
 }
 
 /*
@@ -698,6 +858,7 @@ void Cmd_SetDelays(CommandParameter &Parameters) {
   LightCfg.Data.SRDelayDO0 = delay5*60ul;
   LightCfg.Save();
 }
+
 
 
 /*
@@ -1114,9 +1275,10 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
   //AddCommands to theHandler 
-  SerialCommandHandler.AddCommand(F("GetClock"), Cmd_GetConfig);
+  SerialCommandHandler.AddCommand(F("Status"), Cmd_Status);
   SerialCommandHandler.AddCommand(F("GetConfig"), Cmd_GetConfig);
   SerialCommandHandler.AddCommand(F("SetSunset"), Cmd_SetSunset);
+  SerialCommandHandler.AddCommand(F("GetSunset"), Cmd_GetSunset);
   SerialCommandHandler.AddCommand(F("SetClock"), Cmd_SetClock);
   SerialCommandHandler.AddCommand(F("SetLightDuration"), Cmd_SetLightDuration);
   SerialCommandHandler.AddCommand(F("SetSunriseDuration"), Cmd_SetSunriseDuration);
@@ -1138,8 +1300,8 @@ void setup() {
   SerialCommandHandler.AddCommand(F("MoveGateManual"), Cmd_MoveGateManual);
   SerialCommandHandler.AddCommand(F("SetLocation"), Cmd_SetLocation);
   SerialCommandHandler.AddCommand(F("SetTimezone"), Cmd_SetTimezone);
-  SerialCommandHandler.AddCommand(F("AutomaticSunsetTime"), Cmd_AutomaticSunsetTime);
-  SerialCommandHandler.AddCommand(F("Daylightsavingtime"), Cmd_Daylightsavingtime);
+  SerialCommandHandler.AddCommand(F("SetAutomaticSunsetTime"), Cmd_SetAutomaticSunsetTime);
+  SerialCommandHandler.AddCommand(F("SetDaylightsavingtime"), Cmd_SetDaylightsavingtime);
   SerialCommandHandler.AddCommand(F("SetAutomaticSunsetOffset"), Cmd_SetAutomaticSunsetOffset);
 
   Controllino_RTC_init(0);
