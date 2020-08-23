@@ -2,7 +2,7 @@
 * Changes the DEBUG Output.
 * Right now it is a integer that represents a Level.
 */
-#define DEBUG_OUTPUT 0
+#define DEBUG_OUTPUT 5
 /*
 * This disables the clock and mocks it with millis(), for testing purposes
 * it is usefull. 1 day runs in about 864s (14min and 24s)
@@ -21,6 +21,8 @@
   #include "Configuration_Controllino_Maxi.h"
 #elif defined(CONTROLLINO_MAXI_AUTOMATION)
   #include "Configuration_Controllino_Maxi_Automation.h"
+#elif defined(CONTROLLINO_MEGA)
+  #include "Configuration_Controllino_Mega.h"
 #else 
   #error Please, select one of the supported CONTROLLINO variants in Tools->Board
 #endif
@@ -64,6 +66,8 @@ struct LightControllerConfiguration
   uint32_t SunriseDuration;
   uint32_t LightDuration;
   uint32_t AgeBasedLightDuration [AGE_BASED_LIGHT_WEEKCOUNT]; // 0 .. day 1 - 2 | 1 .. day 3-6 | 2 .. week 2 | 3 .. week3 | ... 
+  bool AutomaticLightDuration;
+  uint16_t Birthday; //  number of days since 2000/01/01, valid for 2001..2099 
   int MaxBrightness0;
   int MaxBrightness1;
   int MaxBrightness2;
@@ -84,12 +88,40 @@ struct LightControllerConfiguration
     SunsetDuration = 75ul*60ul;
     SunriseDuration = 30ul*60ul;
     LightDuration = 14ul*60ul*60ul;
+    AutomaticLightDuration = true;
+    //Lohmann Brown Classic 
+    AgeBasedLightDuration [0]  = 60ul * 60ul * 24ul;
+    AgeBasedLightDuration [1]  = 60ul * 60ul * 18ul;
+    AgeBasedLightDuration [2]  = 60ul * 60ul * 16ul;
+    AgeBasedLightDuration [3]  = 60ul * 60ul * 14ul;
+    AgeBasedLightDuration [4]  = 60ul * 60ul * 12ul;
+    AgeBasedLightDuration [5]  = 60ul * 60ul * 11ul;
+    AgeBasedLightDuration [6]  = 60ul * 60ul * 10ul;
+    AgeBasedLightDuration [7]  = 60ul * 60ul * 9ul;
+    AgeBasedLightDuration [8]  = 60ul * 60ul * 9ul;
+    AgeBasedLightDuration [9]  = 60ul * 60ul * 9ul;
+    AgeBasedLightDuration [10] = 60ul * 60ul * 9ul;
+    AgeBasedLightDuration [11] = 60ul * 60ul * 9ul;
+    AgeBasedLightDuration [12] = 60ul * 60ul * 9ul;
+    AgeBasedLightDuration [13] = 60ul * 60ul * 9ul;
+    AgeBasedLightDuration [14] = 60ul * 60ul * 9ul;
+    AgeBasedLightDuration [15] = 60ul * 60ul * 9ul;
+    AgeBasedLightDuration [16] = 60ul * 60ul * 9ul;
+    AgeBasedLightDuration [17] = 60ul * 60ul * 10ul;
+    AgeBasedLightDuration [18] = 60ul * 60ul * 11ul;
+    AgeBasedLightDuration [19] = 60ul * 60ul * 12ul;
+    AgeBasedLightDuration [20] = 60ul * 60ul * 13ul;
+    AgeBasedLightDuration [21] = 60ul * 60ul * 14ul;
+    AgeBasedLightDuration [22] = 60ul * 60ul * 14ul;
+    AgeBasedLightDuration [23] = 60ul * 60ul * 14ul;
+    AgeBasedLightDuration [24] = 60ul * 60ul * 14ul;
+    AgeBasedLightDuration [25] = 60ul * 60ul * 14ul; 
     MaxBrightness0 = 229;
     MaxBrightness1 = 229;
     MaxBrightness2 = 95;
-    SSDelayA0 = 0ul;
-    SSDelayA1 = 10ul*60ul;
-    SSDelayDO0 = 20ul*60ul;
+    SSDelayA0 = 10ul*60ul;
+    SSDelayA1 = 20ul*60ul;
+    SSDelayDO0 = 0ul*60ul;
     SRDelayA0 = 0ul;
     SRDelayA1 = 10ul*60ul;
     SRDelayDO0 = 20ul*60ul;
@@ -110,6 +142,7 @@ struct WaterControllerConfiguration
     }
 };
 
+static  const uint8_t monthDays[]={31,28,31,30,31,30,31,31,30,31,30,31};
 uint32_t timestamp = 0ul;
 uint32_t sunriseTime;
 const uint32_t one_day = 24ul*60ul*60ul;
@@ -123,7 +156,7 @@ bool manualGateControl = false;
 int currentBrightnessCh0 = 0;
 int currentBrightnessCh1 = 0;
 int currentBrightnessCh2 = 0;
-char currentDay;
+uint16_t currentDay = 'x';
 
 EEPROMStore<LightControllerConfiguration> LightCfg;
 EEPROMStore<NestControllerConfiguration> NestCfg;
@@ -143,6 +176,27 @@ Dusk2Dawn coopLocation = Dusk2Dawn(48.375142, 16.091800, 1.0);
   unsigned int timestamp_hour = 0;
 #endif
 
+
+const uint8_t daysInMonth []  = { 31,28,31,30,31,30,31,31,30,31,30,31 };
+/* This function is taken from https://github.com/adafruit/RTClib */
+/* Released to the public domain! Enjoy! */
+/* number of days since 2000/01/01, valid for 2001..2099 */
+static uint16_t date2days(uint16_t y, uint8_t m, uint8_t d)
+{
+  if (y >= 2000)
+      y -= 2000;
+  uint16_t days = d;
+  for (uint8_t i = 1; i < m; ++i)
+      days += *(daysInMonth + i - 1);
+  if (m > 2 && y % 4 == 0)
+      ++days;
+  return days + 365 * y + (y + 3) / 4 - 1;
+}
+
+void UnknownMessageHandler()
+{
+  Serial.println(F("unknown command"));
+}
 
 
 /*
@@ -282,7 +336,7 @@ void Cmd_GetSunset(CommandParameter &Parameters) {
   
 
   Syntax off the serial command:
-  #SetLocation  [latitude] [longitude]
+  #SetLocation  [latitude] [longitude];
 
   Sets the postion to the given gps coordinates
 */
@@ -324,7 +378,7 @@ void Cmd_GetLocation(CommandParameter &Parameters) {
   
 
   Syntax off the serial command:
-  #SetTimezone  [timezone] 
+  #SetTimezone  [timezone];
 
   Sets the timezone to the given value. expects a float.
 */
@@ -339,25 +393,7 @@ void Cmd_SetTimezone(CommandParameter &Parameters) {
 
 
 /*
-  This function defines the GetTimezone Command
-
-  Parameters: The cmdArguments
-  
-
-  Syntax off the serial command:
-  #GetTimezone;
-
-  Gets the timezone prints it out 
-*/
-void Cmd_GetTimezone(CommandParameter &Parameters) {
-  Parameters.GetSource().print(F("#SetTimezone "));
-  Parameters.GetSource().print(LightCfg.Data.timezone);
-  Parameters.GetSource().println(F(";"));
-}
-
-
-/*
-  This function defines the SetAutomaticSunsetTime Command
+  This function defines the AutomaticSunsetTime Command
 
   Parameters: The cmdArguments
   
@@ -529,6 +565,7 @@ void Cmd_GetLightDuration(CommandParameter &Parameters)
 
 /*
   This function defines the SetLightDuration Command
+  This function defines the SetAgeBasedLightDuration Command
 
   Parameters: The cmdArguments
   
@@ -536,14 +573,14 @@ void Cmd_GetLightDuration(CommandParameter &Parameters)
   Syntax off the serial command:
   #SetAgeBasedLightDuration [age] [hours] [minutes];
 
-  Sets the length of the day (in the chickehouse).
+  Sets the length of the day (in the chickehouse) based on the age in weeks of the hen
 */
 void Cmd_SetAgeBasedLightDuration(CommandParameter &Parameters)
 {
   int age = Parameters.NextParameterAsInteger(25);
   uint32_t lightd_hours = Parameters.NextParameterAsInteger(9);
   uint32_t lightd_minutes = Parameters.NextParameterAsInteger(30);
-  if(lightd_hours>15 || lightd_hours < 0 || lightd_minutes < 0 || lightd_minutes > 59 || age < 0 || age > 25){
+  if(lightd_hours>24 || lightd_hours < 0 || lightd_minutes < 0 || lightd_minutes > 59 || age < 0 || age > 25){
       Parameters.GetSource().println(F("Invalid light duration! "));
       return;
   } 
@@ -551,6 +588,56 @@ void Cmd_SetAgeBasedLightDuration(CommandParameter &Parameters)
     LightCfg.Data.AgeBasedLightDuration[age] = lightd_minutes*60ul+lightd_hours*60ul*60ul;
     LightCfg.Save();
   }
+  LightCfg.Data.LightDuration = calculateLightDuration();
+}
+
+
+/*
+  This function defines the SetBirthday Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetBirthday [year] [month] [day];
+
+  Sets the brithday of the hens. This is needed if you want autmaticly adjust the light duration based
+  on the age of the hens.
+*/
+void Cmd_SetBirthday(CommandParameter &Parameters)
+{
+  uint16_t year = Parameters.NextParameterAsInteger(25);
+  uint8_t  month = Parameters.NextParameterAsInteger(25);
+  uint8_t  day = Parameters.NextParameterAsInteger(25);
+  LightCfg.Data.Birthday = date2days(year, month, day);
+  LightCfg.Save();
+  LightCfg.Data.LightDuration = calculateLightDuration();
+}
+
+
+
+/*
+  This function defines the SetLightDuration Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #AutomaticLightDuration 0|1;
+
+  Sets the length of the day (in the chickehouse).
+*/
+void  Cmd_AutomaticLightDuration(CommandParameter &Parameters)
+{
+  int input = Parameters.NextParameterAsInteger(25);
+  if (input == 1) {
+    LightCfg.Data.AutomaticLightDuration = true;
+  }
+  else {
+    LightCfg.Data.AutomaticLightDuration = true;
+  }
+  LightCfg.Save();
+  LightCfg.Data.LightDuration = calculateLightDuration();
 }
 
 void Cmd_GetAgeBasedLightDuration(CommandParameter &Parameters) {
@@ -882,6 +969,18 @@ void Cmd_Status(CommandParameter &Parameters)
   Parameters.GetSource().print(F("FeedMotorTimeoutMillis="));
   Parameters.GetSource().print(FeedCfg.Data.FeedMotorTimeoutMillis/1000ul);
   Parameters.GetSource().println(F(" seconds"));
+  Parameters.GetSource().print(F("AutomaticLightDuration="));
+  Parameters.GetSource().print(LightCfg.Data.AutomaticLightDuration);
+  Parameters.GetSource().println(F(" bool"));
+  Parameters.GetSource().print(F("Birthday="));
+  Parameters.GetSource().print(LightCfg.Data.Birthday);
+  Parameters.GetSource().println(F(" days since 1.1.2000"));
+  Parameters.GetSource().print(F("AgeBasedLightDuration={ "));
+  for (int i=0; i<26; i++) {
+    Parameters.GetSource().print(LightCfg.Data.AgeBasedLightDuration[i]);
+    Parameters.GetSource().print(F(", "));
+    }
+  Parameters.GetSource().println(F(" }"));
 }
 
 /*
@@ -1344,10 +1443,53 @@ void UpdateFeedMotor() {
 }
 
 
+  /* 
+  TODO First week doesn't work. Like the recommendation from Lohmann Tierzucht.
+  */
+uint32_t calculateLightDuration() {
+  uint16_t controllino_year = Controllino_GetYear();
+  uint8_t  controllino_month = Controllino_GetMonth();
+  uint8_t  controllino_day = Controllino_GetDay();
+  uint16_t dateDays = date2days(controllino_year, controllino_month, controllino_day);
+  uint16_t age = dateDays - LightCfg.Data.Birthday;
+  uint16_t week = (age / 7) + 1; //first week has two datapoints in the array
+  uint32_t weekDay = (uint32_t) age % 7;
+  uint32_t k;
+  uint32_t lightDuration = 0;
+  if (week > 24) { //reached regular light duration until end of egg production.
+    lightDuration = LightCfg.Data.AgeBasedLightDuration[25];
+    week = 24;
+  }
+  else {
+    // handling rising and falling light duration with uint32_t (unsigned integer)
+    if (LightCfg.Data.AgeBasedLightDuration[week]<LightCfg.Data.AgeBasedLightDuration[week+1]) { 
+      k = (LightCfg.Data.AgeBasedLightDuration[week+1] - LightCfg.Data.AgeBasedLightDuration[week])/7;
+      lightDuration = LightCfg.Data.AgeBasedLightDuration[week] + k * weekDay;
+    } else { // LightCfg.Data.AgeBasedLightDuration[week]>=LightCfg.Data.AgeBasedLightDuration[week+1]
+      k = (LightCfg.Data.AgeBasedLightDuration[week] - LightCfg.Data.AgeBasedLightDuration[week+1])/7;
+      lightDuration = LightCfg.Data.AgeBasedLightDuration[week] - k * weekDay;
+    }   
+  }
+  #if DEBUG_OUTPUT == 5
+    Serial.print("year=");Serial.println(controllino_year);
+    Serial.print("month=");Serial.println(controllino_month);
+    Serial.print("day=");Serial.println(controllino_day);
+    Serial.print("dateDays = "); Serial.println(dateDays);
+    Serial.print("birthday = "); Serial.println(LightCfg.Data.Birthday);
+    Serial.print("age = "); Serial.println(age);
+    Serial.print("week = "); Serial.println(week);
+    Serial.print("weekDay = "); Serial.println(weekDay);
+    Serial.print("lightDuration[week] = "); Serial.println(LightCfg.Data.AgeBasedLightDuration[week]);
+    Serial.print("lightDuration[week+1] = "); Serial.println(LightCfg.Data.AgeBasedLightDuration[week+1]);
+    Serial.print("lightDuration = "); Serial.println(lightDuration);
+  #endif
+  return lightDuration;
+}
 
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
+  SerialCommandHandler.SetDefaultHandler(UnknownMessageHandler); 
   //AddCommands to theHandler 
   SerialCommandHandler.AddCommand(F("Status"), Cmd_Status);
   SerialCommandHandler.AddCommand(F("GetConfig"), Cmd_GetConfig);
@@ -1385,6 +1527,12 @@ void setup() {
   SerialCommandHandler.AddCommand(F("SetAutomaticSunsetTime"), Cmd_SetAutomaticSunsetTime);
   SerialCommandHandler.AddCommand(F("SetDaylightsavingtime"), Cmd_SetDaylightsavingtime);
   SerialCommandHandler.AddCommand(F("SetAutomaticSunsetOffset"), Cmd_SetAutomaticSunsetOffset);
+  SerialCommandHandler.AddCommand(F("AutomaticLightDuration"), Cmd_AutomaticLightDuration);
+  SerialCommandHandler.AddCommand(F("SetAgeBasedLightDuration"), Cmd_SetAgeBasedLightDuration);
+  SerialCommandHandler.AddCommand(F("SetBirthday"), Cmd_SetBirthday);
+
+  
+
 
   Controllino_RTC_init(0);
   //Load the configs
@@ -1413,11 +1561,13 @@ void setup() {
   Serial.print("chicken-coop-light-controller-");
   Serial.println(VERSION);
 
-  currentDay = Controllino_GetDay();
   if (LightCfg.Data.automaticSunsetTime) {
     coopLocation = Dusk2Dawn(LightCfg.Data.coopLatitude,
                              LightCfg.Data.coopLongitude,
                              LightCfg.Data.timezone);
+  }
+  if (LightCfg.Data.AutomaticLightDuration) {
+    LightCfg.Data.LightDuration = calculateLightDuration();
   }
   #if DEBUG_OUTPUT == 5
     int sunsetMin = coopLocation.sunset(Controllino_GetYear(),
@@ -1431,6 +1581,7 @@ void setup() {
     Serial.println(timeStr);
   #endif
 }
+
 
 void loop() {
   SerialCommandHandler.Process();
@@ -1483,18 +1634,25 @@ void loop() {
       digitalWrite(ALARM_OUT, LOW);
       digitalWrite(ALARM_SIRENE, LOW);
   }
-  if(currentDay != Controllino_GetDay() && LightCfg.Data.automaticSunsetTime) {
-    currentDay = Controllino_GetDay();
-    uint32_t sunsetMin = (uint32_t) coopLocation.sunset(Controllino_GetYear(),
-                                        Controllino_GetMonth(),
-                                        Controllino_GetDay(),
-                                        LightCfg.Data.daylightsavingtime);
-    sunsetMin += LightCfg.Data.automaticSunsetOffset;
-    #if DEBUG_OUTPUT == 5
+  if(currentDay != Controllino_GetDay()) { // new day
+    #if DEBUG_OUTPUT == 5 
       Serial.println("New Day");
-      Serial.print("sunsetMin = ");
-      Serial.println(sunsetMin);
     #endif
-    LightCfg.Data.SunsetTime = sunsetMin * 60;
+    currentDay = Controllino_GetDay();
+    if(LightCfg.Data.automaticSunsetTime) {
+      uint32_t sunsetMin = (uint32_t) coopLocation.sunset(Controllino_GetYear(),
+                                          Controllino_GetMonth(),
+                                          Controllino_GetDay(),
+                                          LightCfg.Data.daylightsavingtime);
+      sunsetMin += LightCfg.Data.automaticSunsetOffset;
+      #if DEBUG_OUTPUT == 5
+        Serial.print("sunsetMin = ");
+        Serial.println(sunsetMin);
+      #endif
+      LightCfg.Data.SunsetTime = sunsetMin * 60;
+    }
+    if(LightCfg.Data.AutomaticLightDuration) {
+      LightCfg.Data.LightDuration = calculateLightDuration();
+    }
   }
 }
