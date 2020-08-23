@@ -55,6 +55,7 @@ struct FeedControllerConfiguration
   }
 };
 
+#define AGE_BASED_LIGHT_WEEKCOUNT 26
 
 struct LightControllerConfiguration
 {
@@ -62,7 +63,7 @@ struct LightControllerConfiguration
   uint32_t SunsetDuration;
   uint32_t SunriseDuration;
   uint32_t LightDuration;
-  uint32_t AgeBasedLightDuration [26]; // 0 .. day 1 - 2 | 1 .. day 3-6 | 2 .. week 2 | 3 .. week3 | ... 
+  uint32_t AgeBasedLightDuration [AGE_BASED_LIGHT_WEEKCOUNT]; // 0 .. day 1 - 2 | 1 .. day 3-6 | 2 .. week 2 | 3 .. week3 | ... 
   int MaxBrightness0;
   int MaxBrightness1;
   int MaxBrightness2;
@@ -129,6 +130,7 @@ EEPROMStore<NestControllerConfiguration> NestCfg;
 EEPROMStore<WaterControllerConfiguration> WaterCfg;
 EEPROMStore<GateControllerConfiguration> GateCfg;
 EEPROMStore<FeedControllerConfiguration> FeedCfg;
+
 CommandHandler<40, 35, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
 /* 3464 Zaina, Austria
@@ -150,7 +152,7 @@ Dusk2Dawn coopLocation = Dusk2Dawn(48.375142, 16.091800, 1.0);
   
 
   Syntax off the serial command:
-  #SetMaximumFeedMotorRuntime [runtime in seconds];
+  #SetFeedMotorTimeout [runtime in seconds];
   
   This prevets the feed motor from running all time. It limits the duration
   the motor runs. When the timeout is reached the motor stopps until the reset
@@ -160,6 +162,12 @@ Dusk2Dawn coopLocation = Dusk2Dawn(48.375142, 16.091800, 1.0);
 void Cmd_SetFeedMotorTimeoutMillis(CommandParameter &Parameters) { 
   FeedCfg.Data.FeedMotorTimeoutMillis = Parameters.NextParameterAsInteger(1)*1000ul; //runtime in seconds 
   FeedCfg.Save();
+}
+
+void Cmd_GetFeedMotorTimeoutMillis(CommandParameter &Parameters) {
+  Parameters.GetSource().print(F("#SetFeedMotorTimeout "));
+  Parameters.GetSource().print(FeedCfg.Data.FeedMotorTimeoutMillis/1000ul);
+  Parameters.GetSource().println(F(";"));
 }
 
 /*
@@ -179,6 +187,14 @@ void Cmd_SetGateOffsets(CommandParameter &Parameters) {
   GateCfg.Data.GateOpenSunriseOffset = Parameters.NextParameterAsInteger(1)*60ul; //offset in Minutes 
   GateCfg.Data.GateCloseSunsetOffset = Parameters.NextParameterAsInteger(1)*60ul; //offset in Minutes
   GateCfg.Save();
+}
+
+void Cmd_GetGateOffsets(CommandParameter &Parameters) { 
+  Parameters.GetSource().print(F("#SetGateOffset "));
+  Parameters.GetSource().print(GateCfg.Data.GateOpenSunriseOffset/60ul);
+  Parameters.GetSource().print(F(" "));
+  Parameters.GetSource().print(GateCfg.Data.GateCloseSunsetOffset/60ul);
+  Parameters.GetSource().println(F(";"));
 }
 
 
@@ -214,8 +230,9 @@ void Cmd_SetWaterFlushDuration(CommandParameter &Parameters) {
   Prints out the current Water Flush Duration Setting.
 */
 void Cmd_GetWaterFlushDuration(CommandParameter &Parameters) {
+  Parameters.GetSource().print(F("#SetWaterFlushDuration "));
   Parameters.GetSource().print(WaterCfg.Data.WaterFlushDuration/(60ul*1000ul));
-  Parameters.GetSource().println(F(" minutes"));
+  Parameters.GetSource().println(F(";"));
 }
 
 
@@ -333,7 +350,7 @@ void Cmd_SetTimezone(CommandParameter &Parameters) {
   Gets the timezone prints it out 
 */
 void Cmd_GetTimezone(CommandParameter &Parameters) {
-  Parameters.GetSource().print(F("#SetLocation "));
+  Parameters.GetSource().print(F("#SetTimezone "));
   Parameters.GetSource().print(LightCfg.Data.timezone);
   Parameters.GetSource().println(F(";"));
 }
@@ -537,19 +554,15 @@ void Cmd_SetAgeBasedLightDuration(CommandParameter &Parameters)
 }
 
 void Cmd_GetAgeBasedLightDuration(CommandParameter &Parameters) {
-  Serial.print("Size of uint32 array[26] = ");
-  Serial.println(sizeof(LightCfg.Data.AgeBasedLightDuration));
-  /*
-  for(int age = 0; age < sizeof(LightCfg.Data.AgeBasedLightDuration); age++) {
+  for(int age = 0; age < AGE_BASED_LIGHT_WEEKCOUNT; age++) {
     Parameters.GetSource().print(F("#SetAgeBasedLightDuration "));
     Parameters.GetSource().print(age);
     Parameters.GetSource().print(F(" "));
     Parameters.GetSource().print(LightCfg.Data.AgeBasedLightDuration[age]/60ul/60ul);
     Parameters.GetSource().print(F(" "));
     Parameters.GetSource().print(LightCfg.Data.AgeBasedLightDuration[age]/60ul%60ul);
-    Parameters.GetSource().print(F(";"));
-  }*/ //TODO test sizing (4 Bytes per value?)
-}
+    Parameters.GetSource().println(F(";"));
+  } 
 
 
 /*
@@ -576,6 +589,13 @@ void Cmd_SetSunriseDuration(CommandParameter &Parameters)
   }
 }
 
+void Cmd_GetSunriseDuration(CommandParameter &Parameters)
+{
+  Parameters.GetSource().print(F("#SetSunriseDuration "));
+  Parameters.GetSource().print(LightCfg.Data.SunriseDuration/60ul);
+  Parameters.GetSource().println(F(";"));
+}
+
 
 /*
   This function defines the SetSunsetDuration Command
@@ -599,6 +619,13 @@ void Cmd_SetSunsetDuration(CommandParameter &Parameters)
       LightCfg.Data.SunsetDuration = ss_duration*60ul;
       LightCfg.Save();
   }
+}
+
+void Cmd_GetSunsetDuration(CommandParameter &Parameters)
+{
+  Parameters.GetSource().print(F("#SetSunsetDuration "));
+  Parameters.GetSource().print(LightCfg.Data.SunsetDuration/60ul);
+  Parameters.GetSource().println(F(";"));
 }
 
 
@@ -636,10 +663,20 @@ void Cmd_SetMaxBrightness(CommandParameter &Parameters)
   }
   LightCfg.Data.MaxBrightness0 = user_p0*255/100;
   LightCfg.Data.MaxBrightness1 = user_p1*255/100;
-  LightCfg.Data.MaxBrightness2 = user_p2*106/100;
+  LightCfg.Data.MaxBrightness2 = user_p2*106/100; //Kein AD wandler 
   LightCfg.Save();
 }
 
+void Cmd_GetMaxBrightness(CommandParameter &Parameters)
+{
+  Parameters.GetSource().print(F("#GetMaxBrightness "));
+  Parameters.GetSource().print(LightCfg.Data.MaxBrightness0/255*100);
+  Parameters.GetSource().print(F(" "));
+  Parameters.GetSource().print(LightCfg.Data.MaxBrightness1/255*100);
+  Parameters.GetSource().print(F(" "));
+  Parameters.GetSource().print(LightCfg.Data.MaxBrightness2/106*100);
+  Parameters.GetSource().println(F(";"));
+}
 
 /*
   This function defines the SetMaxBrightness Command
@@ -709,7 +746,21 @@ void Cmd_SetClock(CommandParameter &Parameters)
 void Cmd_GetConfig(CommandParameter &Parameters) {
   /* TODO print out every configuration command */
   Cmd_GetSunset(Parameters);
-  Parameters.GetSource().println(F("Not implemented yet!!!"));
+  Cmd_GetFeedMotorTimeoutMillis(Parameters);
+  Cmd_GetGateOffsets(Parameters);
+  Cmd_GetLightDuration(Parameters);
+  Cmd_GetLocation(Parameters);
+  Cmd_GetMaxBrightness(Parameters);
+  Cmd_GetNestSunsetOffset(Parameters);
+  Cmd_GetSunriseDuration(Parameters);
+  Cmd_GetSunsetDuration(Parameters);
+  Cmd_GetTimezone(Parameters);
+  Cmd_GetWaterFlushDuration(Parameters);
+  Cmd_GetAgeBasedLightDuration(Parameters);
+  Cmd_GetAutomaticSunsetOffset(Parameters);
+  Cmd_GetAutomaticSunsetTime(Parameters);
+  Cmd_GetDaylightsavingtime(Parameters);
+  Cmd_GetDelays(Parameters);
 }
 
 /*
@@ -859,7 +910,21 @@ void Cmd_SetDelays(CommandParameter &Parameters) {
   LightCfg.Save();
 }
 
-
+void Cmd_GetDelays(CommandParameter &Parameters) {
+  Parameters.GetSource().print(F("#SetDelays "));
+  Parameters.GetSource().print(LightCfg.Data.SRDelayA0/60ul);
+  Parameters.GetSource().print(F(" "));
+  Parameters.GetSource().print(LightCfg.Data.SRDelayA1/60ul);
+  Parameters.GetSource().print(F(" "));
+  Parameters.GetSource().print(LightCfg.Data.SRDelayDO0/60ul);
+  Parameters.GetSource().print(F(" "));
+  Parameters.GetSource().print(LightCfg.Data.SSDelayA0/60ul);
+  Parameters.GetSource().print(F(" "));
+  Parameters.GetSource().print(LightCfg.Data.SSDelayA1/60ul);
+  Parameters.GetSource().print(F(" "));
+  Parameters.GetSource().print(LightCfg.Data.SSDelayDO0/60ul);
+  Parameters.GetSource().println(F(";"));
+}
 
 /*
   This function defines the SetSSDelay Command
@@ -942,6 +1007,14 @@ void Cmd_SetNestSunsetOffset(CommandParameter &Parameters) {
     NestCfg.Data.NestOpenSunsetOffset = offset0*60l;
     NestCfg.Data.NestCloseSunsetOffset = offset1*60l;
     NestCfg.Save();
+}
+
+void Cmd_GetNestSunsetOffset(CommandParameter &Parameters) {
+    Parameters.GetSource().print(F("#SetNestOffset "));
+    Parameters.GetSource().print(NestCfg.Data.NestOpenSunsetOffset/60l);
+    Parameters.GetSource().print(F(" "));
+    Parameters.GetSource().print(NestCfg.Data.NestCloseSunsetOffset/60l);
+    Parameters.GetSource().println(F(";"));
 }
 
 /*
@@ -1281,18 +1354,26 @@ void setup() {
   SerialCommandHandler.AddCommand(F("GetSunset"), Cmd_GetSunset);
   SerialCommandHandler.AddCommand(F("SetClock"), Cmd_SetClock);
   SerialCommandHandler.AddCommand(F("SetLightDuration"), Cmd_SetLightDuration);
+  SerialCommandHandler.AddCommand(F("GetLightDuration"), Cmd_GetLightDuration);
   SerialCommandHandler.AddCommand(F("SetSunriseDuration"), Cmd_SetSunriseDuration);
+  SerialCommandHandler.AddCommand(F("GetSunriseDuration"), Cmd_GetSunriseDuration);
   SerialCommandHandler.AddCommand(F("SetSunsetDuration"), Cmd_SetSunsetDuration);
+  SerialCommandHandler.AddCommand(F("GetSunsetDuration"), Cmd_GetSunsetDuration);
   SerialCommandHandler.AddCommand(F("SetMaxBrightness"), Cmd_SetMaxBrightness);
+  SerialCommandHandler.AddCommand(F("GetMaxBrightness"), Cmd_GetMaxBrightness);
   SerialCommandHandler.AddCommand(F("SetMaxBrightnessForChannel"), Cmd_SetMaxBrightnessForChannel);
   SerialCommandHandler.AddCommand(F("SetDelays"), Cmd_SetDelays);
+  SerialCommandHandler.AddCommand(F("GetDelays"), Cmd_GetDelays);
   SerialCommandHandler.AddCommand(F("SetSSDelay"), Cmd_SetSSDelay);
   SerialCommandHandler.AddCommand(F("SetSRDelay"), Cmd_SetSRDelay);
   SerialCommandHandler.AddCommand(F("SetNestOffset"), Cmd_SetNestSunsetOffset);
+  SerialCommandHandler.AddCommand(F("GetNestOffset"), Cmd_GetNestSunsetOffset);
   SerialCommandHandler.AddCommand(F("SetWaterFlushDuration"), Cmd_SetWaterFlushDuration);
   SerialCommandHandler.AddCommand(F("GetWaterFlushDuration"), Cmd_GetWaterFlushDuration);
   SerialCommandHandler.AddCommand(F("SetGateOffsets"), Cmd_SetGateOffsets);
-  SerialCommandHandler.AddCommand(F("SetFeedMotorTimeoutMillis"), Cmd_SetFeedMotorTimeoutMillis);
+  SerialCommandHandler.AddCommand(F("GetGateOffsets"), Cmd_GetGateOffsets);
+  SerialCommandHandler.AddCommand(F("SetFeedMotorTimeout"), Cmd_SetFeedMotorTimeoutMillis);
+  SerialCommandHandler.AddCommand(F("GetFeedMotorTimeout"), Cmd_GetFeedMotorTimeoutMillis);
   SerialCommandHandler.AddCommand(F("GetCurrentLightBrightness"), Cmd_GetCurrentLightBrightness);
   SerialCommandHandler.AddCommand(F("FreezeTimeTo"), Cmd_FreezeTimeTo);
   SerialCommandHandler.AddCommand(F("UnfreezeTime"), Cmd_UnfreezeTime);
