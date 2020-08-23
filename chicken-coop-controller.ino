@@ -562,7 +562,8 @@ void Cmd_GetAgeBasedLightDuration(CommandParameter &Parameters) {
     Parameters.GetSource().print(F(" "));
     Parameters.GetSource().print(LightCfg.Data.AgeBasedLightDuration[age]/60ul%60ul);
     Parameters.GetSource().println(F(";"));
-  } 
+  }
+}
 
 
 /*
