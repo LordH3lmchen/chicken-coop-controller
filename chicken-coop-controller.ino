@@ -391,6 +391,22 @@ void Cmd_SetTimezone(CommandParameter &Parameters) {
                              LightCfg.Data.timezone);  
 }
 
+/*
+  This function defines the GetTimezone Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #GetTimezone;
+
+  Gets the timezone prints it out 
+*/
+void Cmd_GetTimezone(CommandParameter &Parameters) {
+  Parameters.GetSource().print(F("#SetTimezone "));
+  Parameters.GetSource().print(LightCfg.Data.timezone);
+  Parameters.GetSource().println(F(";"));
+}
 
 /*
   This function defines the AutomaticSunsetTime Command
