@@ -126,8 +126,8 @@ struct LightControllerConfiguration
     MaxBrightness0 = 229;
     MaxBrightness1 = 229;
     MaxBrightness2 = 95;
-    SSDelayA0 = 10ul*60ul;
-    SSDelayA1 = 20ul*60ul;
+    SSDelayA0 = 20ul*60ul;
+    SSDelayA1 = 10ul*60ul;
     SSDelayDO0 = 0ul*60ul;
     SRDelayA0 = 0ul;
     SRDelayA1 = 10ul*60ul;
@@ -648,7 +648,8 @@ void Cmd_GetBirthday(CommandParameter &Parameters) {
   Parameters.GetSource().print(F(" "));
   Parameters.GetSource().print(LightCfg.Data.birthday_month);
   Parameters.GetSource().print(F(" "));
-  Parameters.GetSource().println(LightCfg.Data.birthday_day);
+  Parameters.GetSource().print(LightCfg.Data.birthday_day);
+  Parameters.GetSource().println(F(";"));
 }
 
 
@@ -794,11 +795,11 @@ void Cmd_SetMaxBrightness(CommandParameter &Parameters)
 void Cmd_GetMaxBrightness(CommandParameter &Parameters)
 {
   Parameters.GetSource().print(F("#GetMaxBrightness "));
-  Parameters.GetSource().print(LightCfg.Data.MaxBrightness0/255*100);
+  Parameters.GetSource().print(LightCfg.Data.MaxBrightness0*100/255);
   Parameters.GetSource().print(F(" "));
-  Parameters.GetSource().print(LightCfg.Data.MaxBrightness1/255*100);
+  Parameters.GetSource().print(LightCfg.Data.MaxBrightness1*100/255);
   Parameters.GetSource().print(F(" "));
-  Parameters.GetSource().print(LightCfg.Data.MaxBrightness2/106*100);
+  Parameters.GetSource().print(LightCfg.Data.MaxBrightness2*100/106);
   Parameters.GetSource().println(F(";"));
 }
 
