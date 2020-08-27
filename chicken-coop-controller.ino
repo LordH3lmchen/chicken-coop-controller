@@ -9,7 +9,7 @@
 */
 #define MOCK_CLOCK 0
 
-#define VERSION "v0.02"
+#define VERSION "v0.3"
 
 #include "MegunoLink.h"
 #include "CommandHandler.h"
