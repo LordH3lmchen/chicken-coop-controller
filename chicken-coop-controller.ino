@@ -2,7 +2,7 @@
 * Changes the DEBUG Output.
 * Right now it is a integer that represents a Level.
 */
-#define DEBUG_OUTPUT 5
+#define DEBUG_OUTPUT 0
 /*
 * This disables the clock and mocks it with millis(), for testing purposes
 * it is usefull. 1 day runs in about 864s (14min and 24s)
@@ -68,6 +68,9 @@ struct LightControllerConfiguration
   uint32_t AgeBasedLightDuration [AGE_BASED_LIGHT_WEEKCOUNT]; // 0 .. day 1 - 2 | 1 .. day 3-6 | 2 .. week 2 | 3 .. week3 | ... 
   bool AutomaticLightDuration;
   uint16_t Birthday; //  number of days since 2000/01/01, valid for 2001..2099 
+  unsigned int birthday_year;
+  unsigned int birthday_month;
+  unsigned int birthday_day;
   int MaxBrightness0;
   int MaxBrightness1;
   int MaxBrightness2;
@@ -89,6 +92,10 @@ struct LightControllerConfiguration
     SunriseDuration = 30ul*60ul;
     LightDuration = 14ul*60ul*60ul;
     AutomaticLightDuration = true;
+    Birthday = 0u;
+    birthday_year = 2020u;
+    birthday_month = 1u;
+    birthday_day = 1u;
     //Lohmann Brown Classic 
     AgeBasedLightDuration [0]  = 60ul * 60ul * 24ul;
     AgeBasedLightDuration [1]  = 60ul * 60ul * 18ul;
@@ -164,7 +171,7 @@ EEPROMStore<WaterControllerConfiguration> WaterCfg;
 EEPROMStore<GateControllerConfiguration> GateCfg;
 EEPROMStore<FeedControllerConfiguration> FeedCfg;
 
-CommandHandler<40, 35, 7> SerialCommandHandler(Serial,'#',';');
+CommandHandler<44, 35, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
 /* 3464 Zaina, Austria
 48°22'30.5"N 16°05'30.5"E
@@ -364,10 +371,10 @@ void Cmd_SetLocation(CommandParameter &Parameters) {
   Gets the location prints it out 
 */
 void Cmd_GetLocation(CommandParameter &Parameters) {
-  Parameters.GetSource().print(F("#GetLocation "));
+  Parameters.GetSource().print(F("#SetLocation "));
   Parameters.GetSource().print(LightCfg.Data.coopLatitude);
   Parameters.GetSource().print(F(" "));
-  Parameters.GetSource().print(LightCfg.Data.coopLatitude);
+  Parameters.GetSource().print(LightCfg.Data.coopLongitude);
   Parameters.GetSource().println(F(";"));
 }
 
@@ -462,7 +469,8 @@ void Cmd_GetAutomaticSunsetTime(CommandParameter &Parameters) {
   Syntax off the serial command:
   #SetAutomaticSunsetOffset [Offset]; 
 
-  Enables or disables the automatic sunset time feature
+  Enables or disables the automatic sunset time feature. This is a offset between the real sunset
+  and the sunset of the light in the chicken coop. 
 */
 void Cmd_SetAutomaticSunsetOffset(CommandParameter &Parameters) {
   uint32_t userinput = (uint32_t) Parameters.NextParameterAsInteger(60);
@@ -626,10 +634,22 @@ void Cmd_SetBirthday(CommandParameter &Parameters)
   uint8_t  month = Parameters.NextParameterAsInteger(25);
   uint8_t  day = Parameters.NextParameterAsInteger(25);
   LightCfg.Data.Birthday = date2days(year, month, day);
+  LightCfg.Data.birthday_year = year;
+  LightCfg.Data.birthday_month = month;
+  LightCfg.Data.birthday_day = day;
   LightCfg.Save();
   LightCfg.Data.LightDuration = calculateLightDuration();
 }
 
+
+void Cmd_GetBirthday(CommandParameter &Parameters) {
+  Parameters.GetSource().print(F("#SetBirthday "));
+  Parameters.GetSource().print(LightCfg.Data.birthday_year);
+  Parameters.GetSource().print(F(" "));
+  Parameters.GetSource().print(LightCfg.Data.birthday_month);
+  Parameters.GetSource().print(F(" "));
+  Parameters.GetSource().println(LightCfg.Data.birthday_day);
+}
 
 
 /*
@@ -652,8 +672,8 @@ void  Cmd_AutomaticLightDuration(CommandParameter &Parameters)
   else {
     LightCfg.Data.AutomaticLightDuration = true;
   }
-  LightCfg.Save();
   LightCfg.Data.LightDuration = calculateLightDuration();
+  LightCfg.Save();
 }
 
 void Cmd_GetAgeBasedLightDuration(CommandParameter &Parameters) {
@@ -849,22 +869,23 @@ void Cmd_SetClock(CommandParameter &Parameters)
 
 void Cmd_GetConfig(CommandParameter &Parameters) {
   /* TODO print out every configuration command */
+  Cmd_GetTimezone(Parameters);
   Cmd_GetSunset(Parameters);
-  Cmd_GetFeedMotorTimeoutMillis(Parameters);
-  Cmd_GetGateOffsets(Parameters);
-  Cmd_GetLightDuration(Parameters);
-  Cmd_GetLocation(Parameters);
+  Cmd_GetAutomaticSunsetTime(Parameters);
+  Cmd_GetAutomaticSunsetOffset(Parameters);
   Cmd_GetMaxBrightness(Parameters);
-  Cmd_GetNestSunsetOffset(Parameters);
+  Cmd_GetLightDuration(Parameters);
   Cmd_GetSunriseDuration(Parameters);
   Cmd_GetSunsetDuration(Parameters);
-  Cmd_GetTimezone(Parameters);
-  Cmd_GetWaterFlushDuration(Parameters);
-  Cmd_GetAgeBasedLightDuration(Parameters);
-  Cmd_GetAutomaticSunsetOffset(Parameters);
-  Cmd_GetAutomaticSunsetTime(Parameters);
-  Cmd_GetDaylightsavingtime(Parameters);
   Cmd_GetDelays(Parameters);
+  Cmd_GetDaylightsavingtime(Parameters);
+  Cmd_GetBirthday(Parameters);
+  Cmd_GetAgeBasedLightDuration(Parameters);
+  Cmd_GetLocation(Parameters);
+  Cmd_GetGateOffsets(Parameters);
+  Cmd_GetNestSunsetOffset(Parameters);
+  Cmd_GetWaterFlushDuration(Parameters);
+  Cmd_GetFeedMotorTimeoutMillis(Parameters);
 }
 
 /*
@@ -1539,14 +1560,18 @@ void setup() {
   SerialCommandHandler.AddCommand(F("MoveGateAutomatic"), Cmd_MoveGateAutomatic);
   SerialCommandHandler.AddCommand(F("MoveGateManual"), Cmd_MoveGateManual);
   SerialCommandHandler.AddCommand(F("SetLocation"), Cmd_SetLocation);
+  SerialCommandHandler.AddCommand(F("GetLocation"), Cmd_GetLocation);
   SerialCommandHandler.AddCommand(F("SetTimezone"), Cmd_SetTimezone);
+  SerialCommandHandler.AddCommand(F("GetTimezone"), Cmd_GetTimezone);
   SerialCommandHandler.AddCommand(F("SetAutomaticSunsetTime"), Cmd_SetAutomaticSunsetTime);
   SerialCommandHandler.AddCommand(F("SetDaylightsavingtime"), Cmd_SetDaylightsavingtime);
   SerialCommandHandler.AddCommand(F("SetAutomaticSunsetOffset"), Cmd_SetAutomaticSunsetOffset);
-  SerialCommandHandler.AddCommand(F("AutomaticLightDuration"), Cmd_AutomaticLightDuration);
+  SerialCommandHandler.AddCommand(F("GetAutomaticSunsetOffset"), Cmd_GetAutomaticSunsetOffset);
+  SerialCommandHandler.AddCommand(F("SetAutomaticLightDuration"), Cmd_AutomaticLightDuration);
   SerialCommandHandler.AddCommand(F("SetAgeBasedLightDuration"), Cmd_SetAgeBasedLightDuration);
+  SerialCommandHandler.AddCommand(F("GetAgeBasedLightDuration"), Cmd_GetAgeBasedLightDuration);
   SerialCommandHandler.AddCommand(F("SetBirthday"), Cmd_SetBirthday);
-
+  SerialCommandHandler.AddCommand(F("GetBirthday"), Cmd_GetBirthday);
   
 
 
