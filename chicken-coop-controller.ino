@@ -119,10 +119,10 @@ struct LightControllerConfiguration
     AgeBasedLightDuration [19] = 60ul * 60ul * 12ul;
     AgeBasedLightDuration [20] = 60ul * 60ul * 13ul;
     AgeBasedLightDuration [21] = 60ul * 60ul * 14ul;
-    AgeBasedLightDuration [22] = 60ul * 60ul * 14ul;
-    AgeBasedLightDuration [23] = 60ul * 60ul * 14ul;
-    AgeBasedLightDuration [24] = 60ul * 60ul * 14ul;
-    AgeBasedLightDuration [25] = 60ul * 60ul * 14ul; 
+    AgeBasedLightDuration [22] = 60ul * 60ul * 15ul;
+    AgeBasedLightDuration [23] = 60ul * 60ul * 16ul;
+    AgeBasedLightDuration [24] = 60ul * 60ul * 16ul;
+    AgeBasedLightDuration [25] = 60ul * 60ul * 16ul; 
     MaxBrightness0 = 229;
     MaxBrightness1 = 229;
     MaxBrightness2 = 95;
@@ -145,7 +145,7 @@ struct WaterControllerConfiguration
 {
     unsigned long WaterFlushDuration;
     void Reset() {
-        WaterFlushDuration = 1ul*60ul*1000ul; // 1 Minutes
+        WaterFlushDuration = 10ul*60ul*1000ul; // 10 Minutes
     }
 };
 
@@ -794,7 +794,7 @@ void Cmd_SetMaxBrightness(CommandParameter &Parameters)
 
 void Cmd_GetMaxBrightness(CommandParameter &Parameters)
 {
-  Parameters.GetSource().print(F("#GetMaxBrightness "));
+  Parameters.GetSource().print(F("#SetMaxBrightness "));
   Parameters.GetSource().print(LightCfg.Data.MaxBrightness0*100/255);
   Parameters.GetSource().print(F(" "));
   Parameters.GetSource().print(LightCfg.Data.MaxBrightness1*100/255);
@@ -1526,7 +1526,7 @@ uint32_t calculateLightDuration() {
 
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(115200);
+  Serial.begin(9600);
   SerialCommandHandler.SetDefaultHandler(UnknownMessageHandler); 
   //AddCommands to theHandler 
   SerialCommandHandler.AddCommand(F("Status"), Cmd_Status);

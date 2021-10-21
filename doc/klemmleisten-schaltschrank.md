@@ -76,8 +76,8 @@ Eingesetzt werden zwei Controllino Automation die in einem Schrank auf zwei Klem
 
 |Klemme| Von             | Zu                                    | Farbe Steuerleitung |
 |------|-----------------|---------------------------------------|---------------------|
-|    1 | PSU 24V         | GND                                   | Schwarz             |
-|    2 | PSU GND         | +24V                                  | Rot                 |
+|    1 | PSU GND         | GND                                   | Schwarz             |
+|    2 | PSU +24V        | +24V                                  | Rot                 |
 |    3 | Controllino DO1 | Wasserventil (24V) - Stall A          | Gelb                |
 |    4 | Controllino DO1 | Wasserventil (24V) - Stall B          | Grün                |
 |    5 | Controllino DI1 | Futter Sensor (Cap) - Stall A         | Grau                |
