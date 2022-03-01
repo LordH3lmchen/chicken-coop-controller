@@ -7,7 +7,7 @@
 * This disables the clock and mocks it with millis(), for testing purposes
 * it is usefull. 1 day runs in about 864s (14min and 24s)
 */
-#define MOCK_CLOCK 0
+#define MOCK_CLOCK 1
 
 #define VERSION "v0.3"
 
@@ -788,7 +788,7 @@ void Cmd_SetMaxBrightness(CommandParameter &Parameters)
   }
   LightCfg.Data.MaxBrightness0 = user_p0*255/100;
   LightCfg.Data.MaxBrightness1 = user_p1*255/100;
-  LightCfg.Data.MaxBrightness2 = user_p2*106/100; //Kein AD wandler 
+  LightCfg.Data.MaxBrightness2 = user_p2*255/100;
   LightCfg.Save();
 }
 
@@ -799,7 +799,7 @@ void Cmd_GetMaxBrightness(CommandParameter &Parameters)
   Parameters.GetSource().print(F(" "));
   Parameters.GetSource().print(LightCfg.Data.MaxBrightness1*100/255);
   Parameters.GetSource().print(F(" "));
-  Parameters.GetSource().print(LightCfg.Data.MaxBrightness2*100/106);
+  Parameters.GetSource().print(LightCfg.Data.MaxBrightness2*100/255);
   Parameters.GetSource().println(F(";"));
 }
 
@@ -834,7 +834,7 @@ void Cmd_SetMaxBrightnessForChannel(CommandParameter &Parameters)
   } else if(channelNr == 1) {
       LightCfg.Data.MaxBrightness1 = value*255/100;
   } else if(channelNr == 2) {
-      LightCfg.Data.MaxBrightness2 = value*106/100; // diffrent ADC that creates a voltage between 0-24V
+      LightCfg.Data.MaxBrightness2 = value*255/100; // diffrent ADC that creates a voltage between 0-24V
   } else {
       Parameters.GetSource().println(F("invalid channel"));
   }
@@ -1257,8 +1257,12 @@ void Cmd_UnfreezeTime(CommandParameter &Parameters) {
 }
 
 
+/* This fnction calculates the current brightness of the coresponding channel
 
-void UpdateLightAO(uint32_t srDelay, uint32_t ssDelay, int maxBrightness, int arduinoPin, bool digital_out, int* currentBrightnessChX) {
+
+
+*/
+void UpdateLightAO(uint32_t srDelay, uint32_t ssDelay, int maxBrightness, int arduinoPin, int digitalOutPin, int* currentBrightnessChX) {
   #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
     Serial.print(F("Channel 0 - "));
   #endif
@@ -1266,13 +1270,9 @@ void UpdateLightAO(uint32_t srDelay, uint32_t ssDelay, int maxBrightness, int ar
     && timestamp < (sunriseTime+srDelay+LightCfg.Data.SunriseDuration)%one_day) // if(sunrise)
   {
     int brightness = maxBrightness*((timestamp-sunriseTime-srDelay)%one_day)/LightCfg.Data.SunriseDuration;
-    if (digital_out) {
-      digitalWrite(arduinoPin, LOW);
-      *currentBrightnessChX = LOW;
-    } else {
-      analogWrite(arduinoPin, brightness);
-      *currentBrightnessChX = brightness;
-    }
+    digitalWrite(digitalOutPin, HIGH);
+    analogWrite(arduinoPin, brightness);
+    *currentBrightnessChX = brightness;
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Sunrise: "));
       Serial.println(brightness);
@@ -1281,13 +1281,9 @@ void UpdateLightAO(uint32_t srDelay, uint32_t ssDelay, int maxBrightness, int ar
   else if ( timestamp >= (sunriseTime+srDelay+LightCfg.Data.SunriseDuration)%one_day // if(day)
     && timestamp < (LightCfg.Data.SunsetTime+ssDelay)%one_day )
   {
-    if(digital_out) {
-      digitalWrite(arduinoPin, HIGH);
-      *currentBrightnessChX = HIGH;
-    } else {
-      analogWrite(arduinoPin, maxBrightness);
-      *currentBrightnessChX = maxBrightness;
-    }
+    digitalWrite(digitalOutPin, HIGH);
+    analogWrite(arduinoPin, maxBrightness);
+    *currentBrightnessChX = maxBrightness;
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Day:     "));
       Serial.println(maxBrightness);
@@ -1297,27 +1293,19 @@ void UpdateLightAO(uint32_t srDelay, uint32_t ssDelay, int maxBrightness, int ar
     && timestamp < (LightCfg.Data.SunsetTime+LightCfg.Data.SunsetDuration+ssDelay)%one_day ) // if(sunset)
   {
     int brightness = maxBrightness-(maxBrightness*((timestamp-LightCfg.Data.SunsetTime-ssDelay)%one_day)/LightCfg.Data.SunsetDuration);
-    if(digital_out){
-      digitalWrite(arduinoPin, LOW);
-      *currentBrightnessChX = LOW;
-    } else {
-      analogWrite(arduinoPin, brightness);
-      *currentBrightnessChX = brightness;
-    }
+    digitalWrite(digitalOutPin, HIGH);
+    analogWrite(arduinoPin, brightness);
+    *currentBrightnessChX = brightness;
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Sunset:  "));
       Serial.println(brightness);
     #endif
   }
-  else
+  else  // if night
   {
-    if(digital_out) {
-      digitalWrite(arduinoPin, LOW);
-      *currentBrightnessChX = LOW;
-    } else {
-      analogWrite(arduinoPin, 0);
-      *currentBrightnessChX = 0;
-    }
+    digitalWrite(digitalOutPin, LOW); 
+    analogWrite(arduinoPin, 0);
+    *currentBrightnessChX = 0;
     #if DEBUG_OUTPUT == 1 || DEBUG_OUTPUT == 2
       Serial.print(F("Night:    "));
       Serial.println(0);
@@ -1328,9 +1316,9 @@ void UpdateLightAO(uint32_t srDelay, uint32_t ssDelay, int maxBrightness, int ar
 
 void UpdateLightOutputs(){
   sunriseTime = (LightCfg.Data.SunsetTime-LightCfg.Data.LightDuration)%one_day;
-  UpdateLightAO(LightCfg.Data.SRDelayA0, LightCfg.Data.SSDelayA0, LightCfg.Data.MaxBrightness0, LIGHT_ANALOG_OUT_0, true, &currentBrightnessCh0);
-  UpdateLightAO(LightCfg.Data.SRDelayA1, LightCfg.Data.SSDelayA1, LightCfg.Data.MaxBrightness1, LIGHT_ANALOG_OUT_1, true, &currentBrightnessCh1);
-  UpdateLightAO(LightCfg.Data.SRDelayDO0, LightCfg.Data.SSDelayDO0, LightCfg.Data.MaxBrightness2, LIGHT_ANALOG_OUT_2, true, &currentBrightnessCh2);
+  UpdateLightAO(LightCfg.Data.SRDelayA0, LightCfg.Data.SSDelayA0, LightCfg.Data.MaxBrightness0, LIGHT_ANALOG_OUT_0, LIGHT_DIGITAL_OUT_0, &currentBrightnessCh0);
+  UpdateLightAO(LightCfg.Data.SRDelayA1, LightCfg.Data.SSDelayA1, LightCfg.Data.MaxBrightness1, LIGHT_ANALOG_OUT_1, LIGHT_DIGITAL_OUT_1, &currentBrightnessCh1);
+  UpdateLightAO(LightCfg.Data.SRDelayDO0, LightCfg.Data.SSDelayDO0, LightCfg.Data.MaxBrightness2, LIGHT_ANALOG_OUT_2, LIGHT_DIGITAL_OUT_2, &currentBrightnessCh2);
 }
 
 
@@ -1588,6 +1576,8 @@ void setup() {
   pinMode(LIGHT_ANALOG_OUT_1, OUTPUT);
   pinMode(LIGHT_ANALOG_OUT_2, OUTPUT);
   pinMode(LIGHT_DIGITAL_OUT_0, OUTPUT);
+  pinMode(LIGHT_DIGITAL_OUT_1, OUTPUT);
+  pinMode(LIGHT_DIGITAL_OUT_2, OUTPUT);
   pinMode(NEST_DIGITAL_OUT, OUTPUT);
   pinMode(WATER_VALVE_DO, OUTPUT);
   pinMode(WATER_BTN, INPUT);
