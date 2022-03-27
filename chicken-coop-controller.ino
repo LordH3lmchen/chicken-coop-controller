@@ -7,7 +7,7 @@
 * This disables the clock and mocks it with millis(), for testing purposes
 * it is usefull. 1 day runs in about 864s (14min and 24s)
 */
-#define MOCK_CLOCK 1
+#define MOCK_CLOCK 0
 
 #define VERSION "v0.3"
 
@@ -125,7 +125,7 @@ struct LightControllerConfiguration
     AgeBasedLightDuration [25] = 60ul * 60ul * 16ul; 
     MaxBrightness0 = 229;
     MaxBrightness1 = 229;
-    MaxBrightness2 = 95;
+    MaxBrightness2 = 229;
     SSDelayA0 = 20ul*60ul;
     SSDelayA1 = 10ul*60ul;
     SSDelayDO0 = 0ul*60ul;
@@ -834,7 +834,7 @@ void Cmd_SetMaxBrightnessForChannel(CommandParameter &Parameters)
   } else if(channelNr == 1) {
       LightCfg.Data.MaxBrightness1 = value*255/100;
   } else if(channelNr == 2) {
-      LightCfg.Data.MaxBrightness2 = value*255/100; // diffrent ADC that creates a voltage between 0-24V
+      LightCfg.Data.MaxBrightness2 = value*255/100;
   } else {
       Parameters.GetSource().println(F("invalid channel"));
   }

@@ -1,8 +1,12 @@
-# Klemmleisten für Stallung A und Stallung B
+# Klemmleisten in TestStallungen
+
+Die Stallungen in denen die Steuerungen in Betrieb sind, sind hier dokumentiert.
+
+## Klemmleisten für Stallung A und Stallung B
 
 Eingesetzt werden zwei Controllino Automation die in einem Schrank auf zwei Klemmleisten (Durchgangsklemmen) angeschlossen werden.
 
-## Klemmleiste 1 (oben) - Steuerleitungen Motoren
+### Klemmleiste 1 (oben) - Steuerleitungen Motoren
 
 | Klemme | Von         | Zu                                                 | Stall | Potential |
 | ------ | ----------- | -------------------------------------------------- | ----- | --------- |
@@ -48,7 +52,7 @@ Eingesetzt werden zwei Controllino Automation die in einem Schrank auf zwei Klem
 | 37     | ICS_A - DO0 | Spühlung Stall A                                   | A     | 24V       |
 | 38     | ICS_B - DO0 | Spühlung Stall B                                   | B     | 24V       |
 
-## Klemmleiste 2 (unten) - Licht (48V PWM)
+### Klemmleiste 2 (unten) - Licht (48V PWM)
 
 |Klemme | Von                         | Zu                                                      | Stall | Potential    |
 |-------|-----------------------------|---------------------------------------------------------|-------|--------------|
@@ -72,7 +76,7 @@ Eingesetzt werden zwei Controllino Automation die in einem Schrank auf zwei Klem
 | 27    | Dimmer - CH3 - OUTPUT LED + | LED Licht Decke Rechts Stall A +                        | B     | 48V          |
 | 28    | Dimmer - CH3 - OUTPUT LED - | LED Licht Decke Rechts Stall A -                        | B     | PWM --> GND  |
 
-## Klemmleiste 3 (unten) - Steuerleitung
+### Klemmleiste 3 (unten) - Steuerleitung
 
 |Klemme| Von             | Zu                                    | Farbe Steuerleitung |
 |------|-----------------|---------------------------------------|---------------------|
@@ -86,3 +90,22 @@ Eingesetzt werden zwei Controllino Automation die in einem Schrank auf zwei Klem
 |    8 | Controllino DO3 | Futter Schnecken Antrieb - Stall B    | Braun               |
 |    9 | Controllino DO5 | Futterkette Stall A                   | Weiß                |
 |   10 | Controllino DO5 | Futterkette Stall B                   | Violet              |
+
+## Stall C & D Klemmleisten
+
+Stall C und D sind ein seperater STall der nicht räumlich getrennt ist.
+
+|Klemme| Von                 | Zu                                    | Farbe Steuerleitung |
+|------|---------------------|---------------------------------------|---------------------|
+|    1 | PE                  | PE                                    | Grün/Gelb           |
+|    2 | Dim MOSFET C - D6   | Licht GND (Weiß) C Haupt              | Weiß                |
+|    3 | Dim MOSFET C - D7   | Licht GND (Weiß) C Neben              | Weiß                |
+|    4 | Dim MOSFET D - D6   | Licht GND (Weiß) D Haupt              | Weiß                |
+|    5 | Dim MOSFET D - D7   | Licht GND (Weiß) D Neben              | Weiß                |
+|    6 | +48V PSU Licht      | Licht +48V (Braun)                    | Rot                 |
+|    7 | +48V PSU Licht      | Licht +48V (Braun)                    | Rot                 |
+|    8 | N Neutralleiter     | N Neutralleiter                       | Blau                |
+|    9 | N Neutralleiter     | N Neutralleiter                       | Blau                |
+|   10 | N Neutralleiter     | N Neutralleiter                       | Blau                |
+|   11 | PLC/SPS 230V Relais | PSU (nur aktiv wenn gebraucht)        | Orange              |
+|   12 | PLC/SPS 230V Relais | PSU (nur aktiv wenn gebraucht)        | Orange              |
