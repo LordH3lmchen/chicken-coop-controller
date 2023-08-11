@@ -2,7 +2,7 @@
 * Changes the DEBUG Output.
 * Right now it is a integer that represents a Level.
 */
-#define DEBUG_OUTPUT 0
+#define DEBUG_OUTPUT 5
 /*
 * This disables the clock and mocks it with millis(), for testing purposes
 * it is usefull. 1 day runs in about 864s (14min and 24s)
@@ -612,6 +612,7 @@ void Cmd_SetAgeBasedLightDuration(CommandParameter &Parameters)
     LightCfg.Data.AgeBasedLightDuration[age] = lightd_minutes*60ul+lightd_hours*60ul*60ul;
     LightCfg.Save();
   }
+
   LightCfg.Data.LightDuration = calculateLightDuration();
 }
 
@@ -1619,7 +1620,7 @@ void loop() {
   SerialCommandHandler.Process();
   
   #if MOCK_CLOCK == 1 // A Day runs 100 times as fast.
-    if(UpdateAoTimer.TimePassed_Milliseconds(10))
+    if(UpdateAoTimer.TimePassed_Milliseconds(3))
   #elif DEBUG_OUTPUT == 2 || DEBUG_OUTPUT == 1
     if(UpdateAoTimer.TimePassed_Milliseconds(3000)) //slow down in debug mode 1 or 2
   #else
