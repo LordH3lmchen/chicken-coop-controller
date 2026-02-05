@@ -17,6 +17,12 @@
 #include "ArduinoTimer.h"
 #include "Dusk2Dawn.h"
 
+#include <Ethernet.h>
+
+#include <ArduinoRS485.h> // ArduinoModbus depends on the ArduinoRS485 library
+#include <ArduinoModbus.h>*/
+#include <Controllino.h>
+
 #if defined(CONTROLLINO_MAXI)
   #include "Configuration_Controllino_Maxi.h"
 #elif defined(CONTROLLINO_MAXI_AUTOMATION)
@@ -67,6 +73,8 @@ struct LightControllerConfiguration
   uint32_t LightDuration;
   uint32_t AgeBasedLightDuration [AGE_BASED_LIGHT_WEEKCOUNT]; // 0 .. day 1 - 2 | 1 .. day 3-6 | 2 .. week 2 | 3 .. week3 | ... 
   bool AutomaticLightDuration;
+  bool manualLightControl;
+  bool manualLightSetting;
   uint16_t Birthday; //  number of days since 2000/01/01, valid for 2001..2099 
   unsigned int birthday_year;
   unsigned int birthday_month;
@@ -92,6 +100,8 @@ struct LightControllerConfiguration
     SunriseDuration = 30ul*60ul;
     LightDuration = 14ul*60ul*60ul;
     AutomaticLightDuration = true;
+    manualLightControl = false;
+    manualLightSetting = true;
     Birthday = 0u;
     birthday_year = 2020u;
     birthday_month = 1u;
@@ -149,10 +159,52 @@ struct WaterControllerConfiguration
     }
 };
 
-static  const uint8_t monthDays[]={31,28,31,30,31,30,31,31,30,31,30,31};
+/*
+// Moved to EEProm to allow config via Serial Interface
+// Ethernet MAC
+byte mac[] = {
+  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
+};
+// Internet Protocol Address
+IPAddress ip(192, 168, 1, 177);
+// TCP Port
+EthernetServer ethServer(502);
+*/
+
+EthernetServer ethServer = EthernetServer(502);
+ModbusTCPServer modbusTCPServer;
+
+
+struct EthernetConfiguration
+{  
+  byte mac[6];
+  byte ip[4];
+  // uint16_t tcpPort; is fixed in code
+
+  void Reset() {
+    // 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
+    mac[0] = 0xDE;
+    mac[1] = 0xAD;
+    mac[2] = 0xBE;
+    mac[3] = 0xEF;
+    mac[4] = 0xFE;
+    mac[5] = 0xED;
+    
+    //192, 168, 1, 177
+    ip[0] = 192;
+    ip[1] = 168;
+    ip[2] = 1;
+    ip[3] = 177;
+
+    // tcpPort = 502; // is fixed in code
+  }
+};
+
+
 uint32_t timestamp = 0ul;
 uint32_t sunriseTime;
-const uint32_t one_day = 24ul*60ul*60ul;
+//PROGMEM moves this to Program Flash Memory on Havard Architecture uC. 
+const PROGMEM uint32_t one_day = 24ul*60ul*60ul;
 int waterBtnRead = 0;
 unsigned long waterBtnPressedTime = 0;
 unsigned long motorSwitchedOnMillis = 0;
@@ -170,8 +222,9 @@ EEPROMStore<NestControllerConfiguration> NestCfg;
 EEPROMStore<WaterControllerConfiguration> WaterCfg;
 EEPROMStore<GateControllerConfiguration> GateCfg;
 EEPROMStore<FeedControllerConfiguration> FeedCfg;
+EEPROMStore<EthernetConfiguration> EthCfg;
 
-CommandHandler<44, 35, 7> SerialCommandHandler(Serial,'#',';');
+CommandHandler<48, 54, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
 /* 3464 Zaina, Austria
 48°22'30.5"N 16°05'30.5"E
@@ -184,7 +237,7 @@ Dusk2Dawn coopLocation = Dusk2Dawn(48.375142, 16.091800, 1.0);
 #endif
 
 
-const uint8_t daysInMonth []  = { 31,28,31,30,31,30,31,31,30,31,30,31 };
+const PROGMEM uint8_t daysInMonth []  = { 31,28,31,30,31,30,31,31,30,31,30,31 };
 /* This function is taken from https://github.com/adafruit/RTClib */
 /* Released to the public domain! Enjoy! */
 /* number of days since 2000/01/01, valid for 2001..2099 */
@@ -677,6 +730,50 @@ void  Cmd_AutomaticLightDuration(CommandParameter &Parameters)
   LightCfg.Data.LightDuration = calculateLightDuration();
   LightCfg.Save();
 }
+
+
+/*
+  This function defines the LightManual Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #LightManual 0|1;
+
+  Switches the Light to manual mode. Parameter 1 means on, 0 means off
+*/
+void  Cmd_LightManual(CommandParameter &Parameters)
+{
+    LightCfg.Data.manualLightControl = true;
+    int input = Parameters.NextParameterAsInteger(1);
+    LightCfg.Data.manualLightControl = true;
+    if (input == 1) {
+      LightCfg.Data.manualLightSetting = true;
+    }
+    else {
+      LightCfg.Data.manualLightSetting = false;
+    }
+}
+
+/*
+  This function defines the LightAutomatic Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #LightAutomatic;
+
+  Switches the Light to auto mode.
+*/
+void  Cmd_LightAutomatic(CommandParameter &Parameters)
+{
+    LightCfg.Data.manualLightControl = false;
+    LightCfg.Data.manualLightSetting = false;
+}
+
+
 
 void Cmd_GetAgeBasedLightDuration(CommandParameter &Parameters) {
   for(int age = 0; age < AGE_BASED_LIGHT_WEEKCOUNT; age++) {
@@ -1203,6 +1300,48 @@ void Cmd_FreezeTimeTo(CommandParameter &Parameters) {
 }
 
 
+
+void Cmd_SetEthernetConfig(CommandParameter &Parameters) {
+  const char mac_delim[2] PROGMEM = ":";
+  const char ip_delim[2] PROGMEM = ".";
+  char *token;
+  int i = 0;
+  Serial.println("Setting the following Config:\nMac Address: ");
+  token = strtok(Parameters.NextParameter(), mac_delim);
+  while( token != NULL) {
+    Serial.print("Token: ");
+    Serial.println(token);
+    token = strtok(NULL, mac_delim); //TODO extract the HEX Values and set the Config
+  }
+  Serial.println("IP  Address: ");
+  i = 0;
+  token = strtok(Parameters.NextParameter(), ip_delim);
+  while( token != NULL) {
+    Serial.print("Token [");
+    Serial.print(i);
+    Serial.print("]: ");
+    Serial.println(token);
+    EthCfg.Data.ip[i] = atoi(token);
+    token = strtok(NULL, ip_delim);
+    i++;
+  }
+  EthCfg.Save();
+  Serial.println("IP Config:");
+  for(i = 0; i < 4; i++) {
+    Serial.print(EthCfg.Data.ip[i]);
+    if(i<3) Serial.print(".");
+  }
+  Serial.println();
+}
+
+
+
+void Cmd_GetEthernetConfig(CommandParameter &Parameters) {
+  Serial.println("FOOO not implemented yet !");
+}
+
+
+
 /*
   This function defines the MoveGateManual Command
 
@@ -1317,9 +1456,28 @@ void UpdateLightAO(uint32_t srDelay, uint32_t ssDelay, int maxBrightness, int ar
 
 void UpdateLightOutputs(){
   sunriseTime = (LightCfg.Data.SunsetTime-LightCfg.Data.LightDuration)%one_day;
-  UpdateLightAO(LightCfg.Data.SRDelayA0, LightCfg.Data.SSDelayA0, LightCfg.Data.MaxBrightness0, LIGHT_ANALOG_OUT_0, LIGHT_DIGITAL_OUT_0, &currentBrightnessCh0);
-  UpdateLightAO(LightCfg.Data.SRDelayA1, LightCfg.Data.SSDelayA1, LightCfg.Data.MaxBrightness1, LIGHT_ANALOG_OUT_1, LIGHT_DIGITAL_OUT_1, &currentBrightnessCh1);
-  UpdateLightAO(LightCfg.Data.SRDelayDO0, LightCfg.Data.SSDelayDO0, LightCfg.Data.MaxBrightness2, LIGHT_ANALOG_OUT_2, LIGHT_DIGITAL_OUT_2, &currentBrightnessCh2);
+  if(LightCfg.Data.manualLightControl) {
+    if (LightCfg.Data.manualLightSetting) {
+      digitalWrite(LIGHT_DIGITAL_OUT_0, HIGH);
+      digitalWrite(LIGHT_DIGITAL_OUT_1, HIGH);
+      digitalWrite(LIGHT_DIGITAL_OUT_2, HIGH);
+      analogWrite(LIGHT_ANALOG_OUT_0, 255);
+      analogWrite(LIGHT_ANALOG_OUT_1, 255);
+      analogWrite(LIGHT_ANALOG_OUT_2, 255);
+    } else {
+      digitalWrite(LIGHT_DIGITAL_OUT_0, LOW);
+      digitalWrite(LIGHT_DIGITAL_OUT_1, LOW);
+      digitalWrite(LIGHT_DIGITAL_OUT_2, LOW);
+      analogWrite(LIGHT_ANALOG_OUT_0, 0);
+      analogWrite(LIGHT_ANALOG_OUT_1, 0);
+      analogWrite(LIGHT_ANALOG_OUT_2, 0);
+    }
+  }
+  else {
+    UpdateLightAO(LightCfg.Data.SRDelayA0, LightCfg.Data.SSDelayA0, LightCfg.Data.MaxBrightness0, LIGHT_ANALOG_OUT_0, LIGHT_DIGITAL_OUT_0, &currentBrightnessCh0);
+    UpdateLightAO(LightCfg.Data.SRDelayA1, LightCfg.Data.SSDelayA1, LightCfg.Data.MaxBrightness1, LIGHT_ANALOG_OUT_1, LIGHT_DIGITAL_OUT_1, &currentBrightnessCh1);
+    UpdateLightAO(LightCfg.Data.SRDelayDO0, LightCfg.Data.SSDelayDO0, LightCfg.Data.MaxBrightness2, LIGHT_ANALOG_OUT_2, LIGHT_DIGITAL_OUT_2, &currentBrightnessCh2);
+  }
 }
 
 
@@ -1513,6 +1671,64 @@ uint32_t calculateLightDuration() {
   return lightDuration;
 }
 
+
+
+void setupModbusTcp() {
+  IPAddress ip( EthCfg.Data.ip[0], EthCfg.Data.ip[1], EthCfg.Data.ip[2], EthCfg.Data.ip[3] );
+
+  /* just to test TODO read from Config Struct 
+  byte mac[] = {
+  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
+  };*/
+  Ethernet.begin(EthCfg.Data.mac, ip);
+    // Check for Ethernet hardware present
+  if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+    Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+    while (true) {
+      delay(1); // do nothing, no point running without Ethernet hardware
+    }
+  }
+  if (Ethernet.linkStatus() == LinkOFF) {
+    Serial.println("Ethernet cable is not connected.");
+  }
+
+  // start the server
+  // ethServer = EthernetServer(EthCfg.Data.tcpPort); port is fixed in code
+  ethServer.begin();
+  
+  // start the Modbus TCP server
+  if (!modbusTCPServer.begin()) {
+    Serial.println("Failed to start Modbus TCP Server!");
+    while (1);
+  }
+
+  // configure a single coil at address 0x00
+  modbusTCPServer.configureCoils(0x2711, 1); //manual gate control
+}
+
+void handleModbusRequests() {
+    // listen for incoming clients
+  EthernetClient client = ethServer.available();
+  
+  if (client) {
+    // a new client connected
+    Serial.println("new client");
+
+    // let the Modbus TCP accept the connection 
+    modbusTCPServer.accept(client);
+
+    while (client.connected()) {
+      // poll for Modbus TCP requests, while client connected
+      modbusTCPServer.poll();
+      int coilValue = modbusTCPServer.coilRead(0x2714);
+      Serial.println(coilValue);
+      Serial.print("CoilValue changed");
+    }
+
+    Serial.println("client disconnected");
+  }
+}
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
@@ -1562,6 +1778,10 @@ void setup() {
   SerialCommandHandler.AddCommand(F("GetAgeBasedLightDuration"), Cmd_GetAgeBasedLightDuration);
   SerialCommandHandler.AddCommand(F("SetBirthday"), Cmd_SetBirthday);
   SerialCommandHandler.AddCommand(F("GetBirthday"), Cmd_GetBirthday);
+  SerialCommandHandler.AddCommand(F("SetEthernetConfig"), Cmd_SetEthernetConfig);
+  SerialCommandHandler.AddCommand(F("GetEthernetConfig"), Cmd_GetEthernetConfig);
+  SerialCommandHandler.AddCommand(F("LightManual"), Cmd_LightManual);
+  SerialCommandHandler.AddCommand(F("LightAutomatic"), Cmd_LightAutomatic);
   
 
 
@@ -1612,13 +1832,15 @@ void setup() {
     char timeStr[6];
     Dusk2Dawn::min2str(timeStr, sunsetMin);
     Serial.println(timeStr);
+
+    setupModbusTcp();
   #endif
 }
 
 
 void loop() {
   SerialCommandHandler.Process();
-  
+  handleModbusRequests();
   #if MOCK_CLOCK == 1 // A Day runs 100 times as fast.
     if(UpdateAoTimer.TimePassed_Milliseconds(3))
   #elif DEBUG_OUTPUT == 2 || DEBUG_OUTPUT == 1
