@@ -69,6 +69,16 @@ GetClock
 GetConfig
 ```
 
+
+```
+LightManual 0|1
+```
+
+```
+LightAutomatic
+```
+
+
 ```
 SetSunset [hour] [minute]
 ```
@@ -117,3 +127,51 @@ integer value delay in minutes
 Is a small python script to configure the chicken-coop-light-controller
 
 It requires [python3]() and [pyserial](https://pythonhosted.org/pyserial/)
+
+
+# Remote Development Setup
+
+A RaspberryPi or similar can be used to access the controller remotely. Usefull are the following tools.
+
+ - tmux
+ - openssh
+
+
+your preferred text editor
+
+ - emacs
+ - neovim
+ - nano
+ - vim
+
+
+arduino-cli installieren
+
+https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh
+
+```
+arduino-cli config init --additional-urls 'https://raw.githubusercontent.com/CONTROLLINO-PLC/CONTROLLINO_Library/master/Boards/package_ControllinoHardware_index.json' --overwrite --verbose
+arduino-cli lib install CONTROLLINO
+arduino-cli lib install MegunoLink
+arduino-cli lib install Dusk2Dawn
+arduino-cli lib install Ethernet
+arduino-cli core install CONTROLLINO_Boards:avr
+arduino-cli core install arduino:avr
+```
+
+Compiling and uploading the sketch
+
+
+```
+arduino-cli compile --fqbn CONTROLLINO_Boards:avr:controllino_maxi
+arduino-cli upload /home/flo/chicken-coop-controller -p /dev/ttyACM0 -b CONTROLLINO_Boards:avr:controllino_maxi
+```
+
+Dusk2Dawn has a bug. It works on Windows but the include is wrong. 
+
+
+```
+sed 's/Math.h/math.h/' ~/Arduino/libraries/Dusk2Dawn/Dusk2Dawn.cpp > ~/Arduino/libraries/Dusk2Dawn/Dusk2Dawn.cpp
+sed 's/Math.h/math.h/' ~/Arduino/libraries/Dusk2Dawn/Dusk2Dawn.h > ~/Arduino/libraries/Dusk2Dawn/Dusk2Dawn.h
+```
+
