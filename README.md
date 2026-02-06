@@ -69,24 +69,25 @@ GetClock
 GetConfig
 ```
 
-
+Turn the light on or off and sets it to manual mode. use the LightAutomatic Command to reset the PLC to the automatic mode. 
 ```
 LightManual 0|1
 ```
 
+Set the light to automatic mode.
 ```
 LightAutomatic
 ```
 
-
+Set the time of the sunset beginning
 ```
 SetSunset [hour] [minute]
 ```
 
+Set the clock to the given time
 ```
 SetClock [day] [weekday] [month] [year] [hour] [minute] [second]
 ```
-
 
 This sets the light duration to the given values in minutes (integer)
 ```
@@ -136,27 +137,33 @@ A RaspberryPi or similar can be used to access the controller remotely. Usefull 
  - tmux
  - openssh
 
-
 your preferred text editor
 
  - emacs
- - neovim
+ - neovim (I use neovim)
  - nano
  - vim
 
+clone this Repo to the machine
 
-arduino-cli installieren
 
-https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh
+## Install arduino-cli
+
+```
+cd ~/.local
+curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+
+```
+
+Add ~/.local/bin to your $PATH variable if necessary.
+
+(see Arch Wiki)[https://wiki.archlinux.org/title/Environment_variables#Examples]
+
 
 ```
 arduino-cli config init --additional-urls 'https://raw.githubusercontent.com/CONTROLLINO-PLC/CONTROLLINO_Library/master/Boards/package_ControllinoHardware_index.json' --overwrite --verbose
-arduino-cli lib install CONTROLLINO
-arduino-cli lib install MegunoLink
-arduino-cli lib install Dusk2Dawn
-arduino-cli lib install Ethernet
-arduino-cli core install CONTROLLINO_Boards:avr
-arduino-cli core install arduino:avr
+arduino-cli lib install CONTROLLINO MegunoLink Dusk2Dawn Ethernet
+arduino-cli core install CONTROLLINO_Boards:avr arduino:avr
 ```
 
 Compiling and uploading the sketch
@@ -173,5 +180,44 @@ Dusk2Dawn has a bug. It works on Windows but the include is wrong.
 ```
 sed 's/Math.h/math.h/' ~/Arduino/libraries/Dusk2Dawn/Dusk2Dawn.cpp > ~/Arduino/libraries/Dusk2Dawn/Dusk2Dawn.cpp
 sed 's/Math.h/math.h/' ~/Arduino/libraries/Dusk2Dawn/Dusk2Dawn.h > ~/Arduino/libraries/Dusk2Dawn/Dusk2Dawn.h
+```
+
+Now you should be able to compile and upload the Sketch
+
+
+## Raspberry Pi Setup
+
+I use the following Tools on all of my machines. This tools are optional thats the way I setup every machine that I use.
+
+diff-so-fancy is not in the Repos of Debian Trixie. 
+
+I clone it to the Downloads folder 
+
+```
+git clone git@github.com:so-fancy/diff-so-fancy.git
+ln -s /home/flo/Downloads/diff-so-fancy/diff-so-fancy /home/flo/.local/bin/diff-so-fancy
+```
+
+Also neovim is very old.
+
+```cd ~/Downloads
+wget https://github.com/neovim/neovim/releases/latest/download/nvim-linux-arm64.tar.gz
+tar xf nvim-linux-arm64.tar.gz                                                                                                                                                                                 130 ↵
+cp -av ~/Downloads/nvim-linux-arm64/* ~/.local/
+```
+
+
+Other tools I use
+```
+sudo apt install eza ripgrep kitty-terminfo tmux zsh npm nodejs
+```
+
+Clone mine or your dotfiles.
+
+```
+git clone
+cd ~/dotfiles/
+./install
+source ~/.zshrc
 ```
 
