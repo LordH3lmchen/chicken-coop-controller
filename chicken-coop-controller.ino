@@ -35,12 +35,16 @@
 
 struct NestControllerConfiguration
 {
-    int32_t NestOpenSunsetOffset;
-    int32_t NestCloseSunsetOffset;
-    void Reset() {
-        NestOpenSunsetOffset = 5l*60l*60l; // 5 hours after sunset
-        NestCloseSunsetOffset = 0l*60l*60l; // 0 hour before sunset
-    }
+  bool manualNestControl;
+  bool manualNestSetting;
+  int32_t NestOpenSunsetOffset;
+  int32_t NestCloseSunsetOffset;
+  void Reset() {
+    manualNestControl = false;
+    manualNestSetting = false;
+    NestOpenSunsetOffset = 5l*60l*60l; // 5 hours after sunset
+    NestCloseSunsetOffset = 0l*60l*60l; // 0 hour before sunset
+  }
 };
 
 
@@ -224,7 +228,7 @@ EEPROMStore<GateControllerConfiguration> GateCfg;
 EEPROMStore<FeedControllerConfiguration> FeedCfg;
 EEPROMStore<EthernetConfiguration> EthCfg;
 
-CommandHandler<48, 54, 7> SerialCommandHandler(Serial,'#',';');
+CommandHandler<50, 54, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
 /* 3464 Zaina, Austria
 48°22'30.5"N 16°05'30.5"E
@@ -1253,6 +1257,48 @@ void Cmd_GetNestSunsetOffset(CommandParameter &Parameters) {
     Parameters.GetSource().println(F(";"));
 }
 
+
+/*
+  This function defines the LightManual Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #LightManual 0|1;
+
+  Switches the Light to manual mode. Parameter 1 means on, 0 means off
+*/
+void  Cmd_NestManual(CommandParameter &Parameters)
+{
+    int input = Parameters.NextParameterAsInteger(1);
+    NestCfg.Data.manualNestControl = true;
+    if (input == 1) {
+      NestCfg.Data.manualNestSetting = true;
+    }
+    else {
+      NestCfg.Data.manualNestSetting = false;
+    }
+}
+
+/*
+  This function defines the LightAutomatic Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #LightAutomatic;
+
+  Switches the Light to auto mode.
+*/
+void  Cmd_NestAutomatic(CommandParameter &Parameters)
+{
+    NestCfg.Data.manualNestControl = false;
+    NestCfg.Data.manualNestSetting = false;
+}
+
+
 /*
   This function defines the GetCurrentLightBrightness Command
 
@@ -1492,7 +1538,15 @@ void UpdateLightOutputs(){
 void UpdateNestOutputs() { //HIGH == Nest UP; LOW == Nest Down;
   uint32_t nestCloseTime = (LightCfg.Data.SunsetTime + NestCfg.Data.NestCloseSunsetOffset)%one_day;
   uint32_t nestOpenTime = (LightCfg.Data.SunsetTime + NestCfg.Data.NestOpenSunsetOffset)%one_day;
-  UpdateOutputTimeBased(nestOpenTime, nestCloseTime, NEST_DIGITAL_OUT);
+  if (NestCfg.Data.manualNestControl) {
+    if (NestCfg.Data.manualNestSetting) {
+      digitalWrite(NEST_DIGITAL_OUT, HIGH);
+    } else {
+      digitalWrite(NEST_DIGITAL_OUT, LOW);
+    }
+  } else {
+    UpdateOutputTimeBased(nestOpenTime, nestCloseTime, NEST_DIGITAL_OUT);
+  }
 }
 
 
@@ -1782,7 +1836,8 @@ void setup() {
   SerialCommandHandler.AddCommand(F("GetEthernetConfig"), Cmd_GetEthernetConfig);
   SerialCommandHandler.AddCommand(F("LightManual"), Cmd_LightManual);
   SerialCommandHandler.AddCommand(F("LightAutomatic"), Cmd_LightAutomatic);
-  
+  SerialCommandHandler.AddCommand(F("NestManual"), Cmd_NestManual);
+  SerialCommandHandler.AddCommand(F("NestAutomatic"), Cmd_NestAutomatic);
 
 
   Controllino_RTC_init(0);
