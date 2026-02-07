@@ -71,6 +71,7 @@ struct FeedControllerConfiguration
 
 struct LightControllerConfiguration
 {
+  char name[16]; // Name of the coop to identify the coop when many plcs are connected to one computer.
   uint32_t SunsetTime;
   uint32_t SunsetDuration;
   uint32_t SunriseDuration;
@@ -228,7 +229,7 @@ EEPROMStore<GateControllerConfiguration> GateCfg;
 EEPROMStore<FeedControllerConfiguration> FeedCfg;
 EEPROMStore<EthernetConfiguration> EthCfg;
 
-CommandHandler<50, 54, 7> SerialCommandHandler(Serial,'#',';');
+CommandHandler<52, 54, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
 /* 3464 Zaina, Austria
 48°22'30.5"N 16°05'30.5"E
@@ -244,7 +245,7 @@ Dusk2Dawn coopLocation = Dusk2Dawn(48.375142, 16.091800, 1.0);
 const PROGMEM uint8_t daysInMonth []  = { 31,28,31,30,31,30,31,31,30,31,30,31 };
 /* This function is taken from https://github.com/adafruit/RTClib */
 /* Released to the public domain! Enjoy! */
-/* number of days since 2000/01/01, valid for 2001..2099 */
+
 static uint16_t date2days(uint16_t y, uint8_t m, uint8_t d)
 {
   if (y >= 2000)
@@ -262,6 +263,36 @@ void UnknownMessageHandler()
   Serial.println(F("unknown command"));
 }
 
+
+/*
+  This function defines the SetName Command
+
+  Parameters: The cmdArguments
+  
+
+  Syntax off the serial command:
+  #SetName;
+
+  Sets the Name of the PLC. This is usefull if you have multiple PLCs connected to one computer.
+  After #SetName; Command ist redceived the PLC is expecting to receive a string with a maximum length of 16 characters.
+*/
+
+void Cmd_SetName(CommandParameter &Parameters) {
+  Serial.print("Name: ");
+  Serial.setTimeout(10000);
+  String input = Serial.readString();
+  input.trim();
+  Serial.setTimeout(1000);
+  for (int i = 0; i < 16; i++) {
+    if (i >= input.length() ) LightCfg.Data.name[i] = ' ';
+    else LightCfg.Data.name[i] = input[i];
+  }
+  LightCfg.Save();
+}
+
+void Cmd_GetName(CommandParameter &Parameters) {
+  Parameters.GetSource().println(LightCfg.Data.name);
+}
 
 /*
   This function defines the SetFeedMotorTimeout Command
@@ -758,6 +789,7 @@ void  Cmd_LightManual(CommandParameter &Parameters)
     else {
       LightCfg.Data.manualLightSetting = false;
     }
+    LightCfg.Save();
 }
 
 /*
@@ -775,6 +807,7 @@ void  Cmd_LightAutomatic(CommandParameter &Parameters)
 {
     LightCfg.Data.manualLightControl = false;
     LightCfg.Data.manualLightSetting = false;
+    LightCfg.Save();
 }
 
 
@@ -972,6 +1005,7 @@ void Cmd_SetClock(CommandParameter &Parameters)
 
 void Cmd_GetConfig(CommandParameter &Parameters) {
   /* TODO print out every configuration command */
+  Cmd_GetName(Parameters);
   Cmd_GetTimezone(Parameters);
   Cmd_GetSunset(Parameters);
   Cmd_GetAutomaticSunsetTime(Parameters);
@@ -1838,6 +1872,9 @@ void setup() {
   SerialCommandHandler.AddCommand(F("LightAutomatic"), Cmd_LightAutomatic);
   SerialCommandHandler.AddCommand(F("NestManual"), Cmd_NestManual);
   SerialCommandHandler.AddCommand(F("NestAutomatic"), Cmd_NestAutomatic);
+  SerialCommandHandler.AddCommand(F("SetName"), Cmd_SetName);
+  SerialCommandHandler.AddCommand(F("GetName"), Cmd_GetName);
+
 
 
   Controllino_RTC_init(0);
