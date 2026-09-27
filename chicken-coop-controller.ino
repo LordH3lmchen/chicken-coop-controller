@@ -2,12 +2,12 @@
 * Changes the DEBUG Output.
 * Right now it is a integer that represents a Level.
 */
-#define DEBUG_OUTPUT 5
+#define DEBUG_OUTPUT 0
 /*
 * This disables the clock and mocks it with millis(), for testing purposes
 * it is usefull. 1 day runs in about 864s (14min and 24s)
 */
-#define MOCK_CLOCK 1
+#define MOCK_CLOCK 0
 
 #define VERSION "v0.3"
 
@@ -19,8 +19,8 @@
 
 #include <Ethernet.h>
 
-#include <ArduinoRS485.h> // ArduinoModbus depends on the ArduinoRS485 library
-#include <ArduinoModbus.h>*/
+//#include <ArduinoRS485.h> // ArduinoModbus depends on the ArduinoRS485 library
+//#include <ArduinoModbus.h>*/
 #include <Controllino.h>
 
 #if defined(CONTROLLINO_MAXI)
@@ -100,6 +100,7 @@ struct LightControllerConfiguration
   float coopLongitude;
   float timezone;
   void Reset() {
+    //name = "Stall-Foo      ";
     SunsetTime = 17ul*60ul*60ul;
     SunsetDuration = 75ul*60ul;
     SunriseDuration = 30ul*60ul;
@@ -111,7 +112,7 @@ struct LightControllerConfiguration
     birthday_year = 2020u;
     birthday_month = 1u;
     birthday_day = 1u;
-    //Lohmann Brown Classic 
+    //Lohmann Brown Classic PDF Light recomendations
     AgeBasedLightDuration [0]  = 60ul * 60ul * 24ul;
     AgeBasedLightDuration [1]  = 60ul * 60ul * 18ul;
     AgeBasedLightDuration [2]  = 60ul * 60ul * 16ul;
@@ -164,47 +165,6 @@ struct WaterControllerConfiguration
     }
 };
 
-/*
-// Moved to EEProm to allow config via Serial Interface
-// Ethernet MAC
-byte mac[] = {
-  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
-};
-// Internet Protocol Address
-IPAddress ip(192, 168, 1, 177);
-// TCP Port
-EthernetServer ethServer(502);
-*/
-
-EthernetServer ethServer = EthernetServer(502);
-ModbusTCPServer modbusTCPServer;
-
-
-struct EthernetConfiguration
-{  
-  byte mac[6];
-  byte ip[4];
-  // uint16_t tcpPort; is fixed in code
-
-  void Reset() {
-    // 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
-    mac[0] = 0xDE;
-    mac[1] = 0xAD;
-    mac[2] = 0xBE;
-    mac[3] = 0xEF;
-    mac[4] = 0xFE;
-    mac[5] = 0xED;
-    
-    //192, 168, 1, 177
-    ip[0] = 192;
-    ip[1] = 168;
-    ip[2] = 1;
-    ip[3] = 177;
-
-    // tcpPort = 502; // is fixed in code
-  }
-};
-
 
 uint32_t timestamp = 0ul;
 uint32_t sunriseTime;
@@ -227,7 +187,6 @@ EEPROMStore<NestControllerConfiguration> NestCfg;
 EEPROMStore<WaterControllerConfiguration> WaterCfg;
 EEPROMStore<GateControllerConfiguration> GateCfg;
 EEPROMStore<FeedControllerConfiguration> FeedCfg;
-EEPROMStore<EthernetConfiguration> EthCfg;
 
 CommandHandler<52, 54, 7> SerialCommandHandler(Serial,'#',';');
 ArduinoTimer UpdateAoTimer;
@@ -291,7 +250,8 @@ void Cmd_SetName(CommandParameter &Parameters) {
 }
 
 void Cmd_GetName(CommandParameter &Parameters) {
-  Parameters.GetSource().println(LightCfg.Data.name);
+  Parameters.GetSource().write(LightCfg.Data.name, 16);
+  Parameters.GetSource().println(F(";"));
 }
 
 /*
@@ -1005,7 +965,7 @@ void Cmd_SetClock(CommandParameter &Parameters)
 
 void Cmd_GetConfig(CommandParameter &Parameters) {
   /* TODO print out every configuration command */
-  Cmd_GetName(Parameters);
+  //Cmd_GetName(Parameters);
   Cmd_GetTimezone(Parameters);
   Cmd_GetSunset(Parameters);
   Cmd_GetAutomaticSunsetTime(Parameters);
@@ -1039,6 +999,7 @@ void Cmd_GetConfig(CommandParameter &Parameters) {
 */
 void Cmd_Status(CommandParameter &Parameters)
 {
+  Cmd_GetName(Parameters);
   #if MOCK_CLOCK
     Parameters.GetSource().println(F("MOCKED TIME!!!"));
     Parameters.GetSource().print(timestamp/60ul/60ul);
@@ -1293,13 +1254,13 @@ void Cmd_GetNestSunsetOffset(CommandParameter &Parameters) {
 
 
 /*
-  This function defines the LightManual Command
+  This function defines the NestManual Command
 
   Parameters: The cmdArguments
   
 
   Syntax off the serial command:
-  #LightManual 0|1;
+  #NestManual 0|1;
 
   Switches the Light to manual mode. Parameter 1 means on, 0 means off
 */
@@ -1316,13 +1277,13 @@ void  Cmd_NestManual(CommandParameter &Parameters)
 }
 
 /*
-  This function defines the LightAutomatic Command
+  This function defines the NestAutomatic Command
 
   Parameters: The cmdArguments
   
 
   Syntax off the serial command:
-  #LightAutomatic;
+  #NestAutomatic;
 
   Switches the Light to auto mode.
 */
@@ -1378,48 +1339,6 @@ void Cmd_FreezeTimeTo(CommandParameter &Parameters) {
   timestamp += hour*60ul*60ul;
   freezeTime = true;
 }
-
-
-
-void Cmd_SetEthernetConfig(CommandParameter &Parameters) {
-  const char mac_delim[2] PROGMEM = ":";
-  const char ip_delim[2] PROGMEM = ".";
-  char *token;
-  int i = 0;
-  Serial.println("Setting the following Config:\nMac Address: ");
-  token = strtok(Parameters.NextParameter(), mac_delim);
-  while( token != NULL) {
-    Serial.print("Token: ");
-    Serial.println(token);
-    token = strtok(NULL, mac_delim); //TODO extract the HEX Values and set the Config
-  }
-  Serial.println("IP  Address: ");
-  i = 0;
-  token = strtok(Parameters.NextParameter(), ip_delim);
-  while( token != NULL) {
-    Serial.print("Token [");
-    Serial.print(i);
-    Serial.print("]: ");
-    Serial.println(token);
-    EthCfg.Data.ip[i] = atoi(token);
-    token = strtok(NULL, ip_delim);
-    i++;
-  }
-  EthCfg.Save();
-  Serial.println("IP Config:");
-  for(i = 0; i < 4; i++) {
-    Serial.print(EthCfg.Data.ip[i]);
-    if(i<3) Serial.print(".");
-  }
-  Serial.println();
-}
-
-
-
-void Cmd_GetEthernetConfig(CommandParameter &Parameters) {
-  Serial.println("FOOO not implemented yet !");
-}
-
 
 
 /*
@@ -1760,63 +1679,6 @@ uint32_t calculateLightDuration() {
 }
 
 
-
-void setupModbusTcp() {
-  IPAddress ip( EthCfg.Data.ip[0], EthCfg.Data.ip[1], EthCfg.Data.ip[2], EthCfg.Data.ip[3] );
-
-  /* just to test TODO read from Config Struct 
-  byte mac[] = {
-  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
-  };*/
-  Ethernet.begin(EthCfg.Data.mac, ip);
-    // Check for Ethernet hardware present
-  if (Ethernet.hardwareStatus() == EthernetNoHardware) {
-    Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
-    while (true) {
-      delay(1); // do nothing, no point running without Ethernet hardware
-    }
-  }
-  if (Ethernet.linkStatus() == LinkOFF) {
-    Serial.println("Ethernet cable is not connected.");
-  }
-
-  // start the server
-  // ethServer = EthernetServer(EthCfg.Data.tcpPort); port is fixed in code
-  ethServer.begin();
-  
-  // start the Modbus TCP server
-  if (!modbusTCPServer.begin()) {
-    Serial.println("Failed to start Modbus TCP Server!");
-    while (1);
-  }
-
-  // configure a single coil at address 0x00
-  modbusTCPServer.configureCoils(0x2711, 1); //manual gate control
-}
-
-void handleModbusRequests() {
-    // listen for incoming clients
-  EthernetClient client = ethServer.available();
-  
-  if (client) {
-    // a new client connected
-    Serial.println("new client");
-
-    // let the Modbus TCP accept the connection 
-    modbusTCPServer.accept(client);
-
-    while (client.connected()) {
-      // poll for Modbus TCP requests, while client connected
-      modbusTCPServer.poll();
-      int coilValue = modbusTCPServer.coilRead(0x2714);
-      Serial.println(coilValue);
-      Serial.print("CoilValue changed");
-    }
-
-    Serial.println("client disconnected");
-  }
-}
-
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
@@ -1866,8 +1728,6 @@ void setup() {
   SerialCommandHandler.AddCommand(F("GetAgeBasedLightDuration"), Cmd_GetAgeBasedLightDuration);
   SerialCommandHandler.AddCommand(F("SetBirthday"), Cmd_SetBirthday);
   SerialCommandHandler.AddCommand(F("GetBirthday"), Cmd_GetBirthday);
-  SerialCommandHandler.AddCommand(F("SetEthernetConfig"), Cmd_SetEthernetConfig);
-  SerialCommandHandler.AddCommand(F("GetEthernetConfig"), Cmd_GetEthernetConfig);
   SerialCommandHandler.AddCommand(F("LightManual"), Cmd_LightManual);
   SerialCommandHandler.AddCommand(F("LightAutomatic"), Cmd_LightAutomatic);
   SerialCommandHandler.AddCommand(F("NestManual"), Cmd_NestManual);
@@ -1932,7 +1792,6 @@ void setup() {
 
 void loop() {
   SerialCommandHandler.Process();
-  handleModbusRequests();
   #if MOCK_CLOCK == 1 // A Day runs 100 times as fast.
     if(UpdateAoTimer.TimePassed_Milliseconds(3))
   #elif DEBUG_OUTPUT == 2 || DEBUG_OUTPUT == 1
@@ -1950,7 +1809,7 @@ void loop() {
         timestamp += controllino_min*60ul;
         timestamp += controllino_hour*60ul*60ul;
       }
-    #elif MOCK_CLOCK == 1
+    #elif MOCK_CLOCK == 1 // for testing and show the clock is artificially set
       timestamp = millis()/10ul%one_day;
       if((timestamp/60ul/60ul) != timestamp_hour){
           timestamp_hour = timestamp/60/60;

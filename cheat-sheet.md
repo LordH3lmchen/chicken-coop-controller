@@ -1,30 +1,29 @@
 # Stallsteuerung
 
-Die Steuerung ist erreichbar mittles eines Raspberry Pi's. Dieser ist errichbar per SSH unter dem namen stall-raspi und lüft mit Debian.
+Die Steuerung ist erreichbar mittles eines Raspberry Pi's. Dieser ist errichbar per SSH unter dem namen stall-raspi und läuft mit Debian.
 
-ssh flo@stall-raspi
+```ssh flo@stall-raspi```
 
 oder
 
-ssh flo@stall-raspi.trabauer.org
+```ssh flo@stall-raspi.trabauer.org```
 
 Die Steuerung selbst ist per USB Verbunden und stellt eine Art CLI zur Verfügung. Jedes Commando startet mit dem **#**-Symbol und endet mit dem **;** Symbol.
 
-## Installierte tools am System
+## Installierte Tools am System
 
  - picocom
  - tmux
  - neovim
  - zsh
 
-Das moderne Standard Toolset
 
 # picocom 
 
 ist installiert. 
 
 
-```picocom /dev/ttyACM0``` 
+```picocom -c /dev/ttyACM0```
 
 startet und verbindet sich mit der Steuerung des Stalls 
 
