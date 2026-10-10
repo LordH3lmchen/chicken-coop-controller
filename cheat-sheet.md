@@ -74,7 +74,19 @@ Berechnet das Geburtsdatum der Hühner.
 
 
 
-# Commandos der Steuerung
+# Befehle der Steuerung
+
+```#LightManual 0|1;```
+Schaltet das Licht auf manuelle steuerung ein oder aus.
+
+```#LightAutomatic;```
+Schaltet das Licht auf autmoatik nach Lichtprogramm. Beendet den manuelle Steuerung Modus.
+
+```#NestManual 0|1;```
+Schaltet das Nest auf manuelle Steuerung ein oder aus.
+
+```#NestAutomatic;```
+Schaltet das Nest auf autmoatik nach Nestprogramm.
 
 
 ```#SetFeedMotorTimeout [runtime in seconds];```
