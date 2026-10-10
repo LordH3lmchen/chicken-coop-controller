@@ -102,7 +102,7 @@ Man gibt den Namen an (max 16 Zeichen) und wartet 10 Sekunden
 
 ```#GetName;```
 
-Gint den aktuellen Namen der Steuerung aus.
+Gibt den aktuellen Namen der Steuerung aus.
 
 
 ```#SetFeedMotorTimeout [runtime in seconds];```
