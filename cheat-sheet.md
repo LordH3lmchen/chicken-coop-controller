@@ -44,6 +44,14 @@ Mehr Infos findet man in der manpage von picocom.
 
 Die Steuerung ist auf 9600 Baud 8 Datenbits 1 Stoppbit eingestellt. 
 
+# arduino-cli
+
+Am raspi ist auch arduino-cli installiert. Mit ``` arduino-cli monitor -p /dev/ttyACM0``` kann der Arduino Monitor (wie in der IDE) im Terminal verwedet werden. 
+Um einen Sketch zu kompilieren kann
+
+```arduino-cli upload -b CONTROLLINO_Boards:avr:controllino_maxi_automoation -p /dev/ttyACM0``` verwedet werden.
+
+
 
 # Die wichtigsten Commandos
 
@@ -87,6 +95,14 @@ Schaltet das Nest auf manuelle Steuerung ein oder aus.
 
 ```#NestAutomatic;```
 Schaltet das Nest auf autmoatik nach Nestprogramm.
+
+```#SetName;```
+Startet einen Wizard um den Namen zu setzen.
+Man gibt den Namen an (max 16 Zeichen) und wartet 10 Sekunden
+
+```#GetName;```
+
+Gint den aktuellen Namen der Steuerung aus.
 
 
 ```#SetFeedMotorTimeout [runtime in seconds];```
