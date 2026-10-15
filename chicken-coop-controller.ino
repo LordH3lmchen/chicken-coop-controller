@@ -752,6 +752,7 @@ void  Cmd_LightManual(CommandParameter &Parameters)
     LightCfg.Save();
 }
 
+
 /*
   This function defines the LightAutomatic Command
 
@@ -1460,9 +1461,9 @@ void UpdateLightOutputs(){
       digitalWrite(LIGHT_DIGITAL_OUT_0, HIGH);
       digitalWrite(LIGHT_DIGITAL_OUT_1, HIGH);
       digitalWrite(LIGHT_DIGITAL_OUT_2, HIGH);
-      analogWrite(LIGHT_ANALOG_OUT_0, 255);
-      analogWrite(LIGHT_ANALOG_OUT_1, 255);
-      analogWrite(LIGHT_ANALOG_OUT_2, 255);
+      analogWrite(LIGHT_ANALOG_OUT_0, LightCfg.Data.MaxBrightness0);
+      analogWrite(LIGHT_ANALOG_OUT_1, LightCfg.Data.MaxBrightness1);
+      analogWrite(LIGHT_ANALOG_OUT_2, LightCfg.Data.MaxBrightness2);
     } else {
       digitalWrite(LIGHT_DIGITAL_OUT_0, LOW);
       digitalWrite(LIGHT_DIGITAL_OUT_1, LOW);
