@@ -51,7 +51,7 @@ Um einen Sketch zu kompilieren kann
 
 ```arduino-cli upload -b CONTROLLINO_Boards:avr:controllino_maxi_automoation -p /dev/ttyACM0``` verwedet werden.
 
-
+```arduino-cli monitor -p /dev/ttyACM0``` kann auch statt picocom verwendet werden.
 
 # Die wichtigsten Commandos
 
@@ -72,13 +72,16 @@ Das kann einfach mit python (als Taschenrechner ausgerechnet werden)
 
 Am Lieferschein ist immer die Abweichung des Alters in Tagen angegeben. z.B. 18 Wochen -3 Tage 
 
+Der junghennen_datum_rechner.py Fragt einen alle Dinge ab und gibt einem den Befehl zum einstellen aus.
+
+```python ~/chicken-coop-controller/junghennen_datum_rechner.py``` 
+
+
+Im grunde folgender Code
 ```
 import datetime
 datetime.datetime.today()-datetime.timedelta(weeks=18, days=-3) 
 ```
-
-Berechnet das Geburtsdatum der Hühner. 
-
 
 
 
@@ -88,13 +91,13 @@ Berechnet das Geburtsdatum der Hühner.
 Schaltet das Licht auf manuelle steuerung ein oder aus.
 
 ```#LightAutomatic;```
-Schaltet das Licht auf autmoatik nach Lichtprogramm. Beendet den manuelle Steuerung Modus.
+Schaltet das Licht auf automatik nach Lichtprogramm. Beendet den manuelle Steuerung Modus.
 
 ```#NestManual 0|1;```
 Schaltet das Nest auf manuelle Steuerung ein oder aus.
 
 ```#NestAutomatic;```
-Schaltet das Nest auf autmoatik nach Nestprogramm.
+Schaltet das Nest auf automatik nach Nestprogramm.
 
 ```#SetName;```
 Startet einen Wizard um den Namen zu setzen.
@@ -107,7 +110,7 @@ Gibt den aktuellen Namen der Steuerung aus.
 
 ```#SetFeedMotorTimeout [runtime in seconds];```
 
-This prevets the feed motor from running all time. It limits the duration
+This prevents the feed motor from running all time. It limits the duration
 the motor runs. When the timeout is reached the motor stopps until the reset
 button is pressed. Also an alarm lamp is switched on to indicate an issue.
 
