@@ -10,6 +10,7 @@
 #define MOCK_CLOCK 0
 
 #define VERSION "v0.3"
+#define one_day 86400UL
 
 #include "MegunoLink.h"
 #include "CommandHandler.h"
@@ -17,7 +18,7 @@
 #include "ArduinoTimer.h"
 #include "Dusk2Dawn.h"
 
-#include <Ethernet.h>
+//#include <Ethernet.h>
 
 //#include <ArduinoRS485.h> // ArduinoModbus depends on the ArduinoRS485 library
 //#include <ArduinoModbus.h>*/
@@ -169,7 +170,7 @@ struct WaterControllerConfiguration
 uint32_t timestamp = 0ul;
 uint32_t sunriseTime;
 //PROGMEM moves this to Program Flash Memory on Havard Architecture uC. 
-const PROGMEM uint32_t one_day = 24ul*60ul*60ul;
+//const PROGMEM uint32_t one_day = 24ul*60ul*60ul;
 int waterBtnRead = 0;
 unsigned long waterBtnPressedTime = 0;
 unsigned long motorSwitchedOnMillis = 0;
@@ -1000,7 +1001,7 @@ void Cmd_GetConfig(CommandParameter &Parameters) {
 */
 void Cmd_Status(CommandParameter &Parameters)
 {
-  Cmd_GetName(Parameters);
+  Parameters.GetSource().write(LightCfg.Data.name, 16);
   #if MOCK_CLOCK
     Parameters.GetSource().println(F("MOCKED TIME!!!"));
     Parameters.GetSource().print(timestamp/60ul/60ul);
@@ -1116,7 +1117,7 @@ void Cmd_Status(CommandParameter &Parameters)
     Parameters.GetSource().print(LightCfg.Data.AgeBasedLightDuration[i]);
     Parameters.GetSource().print(F(", "));
     }
-  Parameters.GetSource().println(F(" }"));
+  Parameters.GetSource().println(F(" }\n;"));
 }
 
 /*
