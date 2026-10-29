@@ -81,7 +81,7 @@ struct LightControllerConfiguration
   bool AutomaticLightDuration;
   bool manualLightControl;
   bool manualLightSetting;
-  uint16_t Birthday; //  number of days since 2000/01/01, valid for 2001..2099 
+  uint16_t Birthday; //  number of days since 2000/01/01 (EEPROM format, keep stable), valid for 2000..2106 
   unsigned int birthday_year;
   unsigned int birthday_month;
   unsigned int birthday_day;
@@ -202,20 +202,47 @@ Dusk2Dawn coopLocation = Dusk2Dawn(48.375142, 16.091800, 1.0);
 #endif
 
 
-const PROGMEM uint8_t daysInMonth []  = { 31,28,31,30,31,30,31,31,30,31,30,31 };
-/* This function is taken from https://github.com/adafruit/RTClib */
-/* Released to the public domain! Enjoy! */
+/*
+  Days since the Unix epoch 1970-01-01 for a civil (Gregorian) date.
+  Self-contained: no lookup table, does not use date2days().
+  Algorithm: "days_from_civil" from Howard Hinnant's public-domain paper
+  "chrono-Compatible Low-Level Date Algorithms"
+  (https://howardhinnant.github.io/date_algorithms).
+  The civil calendar repeats exactly every 400 years, so the algorithm works
+  in 400-year "eras": it computes the era, the year of era and the day of era,
+  then combines them. Exact Gregorian rules, including the century leap-year
+  rule (2100 is NOT a leap year).
 
-static uint16_t date2days(uint16_t y, uint8_t m, uint8_t d)
+  All arithmetic is uint32_t, so it is safe on the 8-bit AVR (2560).
+  Preconditions: m in [1,12], d in [1, last day of month], y >= 1970.
+*/
+static uint32_t daysFromEpoch(uint16_t y, uint8_t m, uint8_t d)
 {
-  if (y >= 2000)
-      y -= 2000;
-  uint16_t days = d;
-  for (uint8_t i = 1; i < m; ++i)
-      days += *(daysInMonth + i - 1);
-  if (m > 2 && y % 4 == 0)
-      ++days;
-  return days + 365 * y + (y + 3) / 4 - 1;
+  uint32_t y32 = (uint32_t)y - (m <= 2);                      /* Jan/Feb belong to the previous era-year */
+  uint32_t era = y32 / 400UL;                                 /* 400-year era (era 5 = 2000..2399) */
+  uint32_t yoe = y32 - era * 400UL;                           /* year of era [0, 399] */
+  uint32_t mp  = (uint32_t)(m + (m > 2 ? -3 : 9));            /* March-based month index [0, 11] */
+  uint32_t doy = (153UL * mp + 2UL) / 5UL + d - 1UL;          /* day of era-year [0, 365] */
+  uint32_t doe = yoe * 365UL + yoe / 4UL - yoe / 100UL + doy; /* day of era [0, 146096] */
+  return era * 146097UL + doe - 719468UL;                     /* 0 == 1970-01-01 */
+}
+
+/*
+  Converts a date and time to the Unix epoch (seconds since 1970-01-01 00:00:00).
+  Self-contained (daysFromEpoch above), independent of date2days().
+  The input is treated as-is (no timezone offset is applied), so a wall-clock
+  time from the RTC yields the epoch of that UTC time.
+  All arithmetic is done in uint32_t: valid for dates up to 2106-02-07 06:28:15
+  (uint32_t overflow = 4294967295), which is fine for an Arduino 2560 (8-bit).
+
+  Parameters: y = year (1970..2106), m = month (1..12), d = day (1..31),
+              h = hour (0..23), min = minute (0..59), s = second (0..59)
+  Returns: seconds since 1970-01-01 00:00:00
+*/
+uint32_t date2epoch(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t min, uint8_t s)
+{
+  uint32_t days = daysFromEpoch(y, m, d);
+  return days * 86400UL + (uint32_t)h * 3600UL + (uint32_t)min * 60UL + (uint32_t)s;
 }
 
 void UnknownMessageHandler()
@@ -683,7 +710,10 @@ void Cmd_SetBirthday(CommandParameter &Parameters)
   uint16_t year = Parameters.NextParameterAsInteger(25);
   uint8_t  month = Parameters.NextParameterAsInteger(25);
   uint8_t  day = Parameters.NextParameterAsInteger(25);
-  LightCfg.Data.Birthday = date2days(year, month, day);
+  if (year < 100) year += 2000; // 2-digit year input (25 == 2025)
+  /* Stored as days since 2000-01-01 (uint16_t, EEPROM format kept stable);
+     1970-01-01 .. 2000-01-01 is 10957 days. */
+  LightCfg.Data.Birthday = (uint16_t)(daysFromEpoch(year, month, day) - 10957UL);
   LightCfg.Data.birthday_year = year;
   LightCfg.Data.birthday_month = month;
   LightCfg.Data.birthday_day = day;
@@ -700,6 +730,28 @@ void Cmd_GetBirthday(CommandParameter &Parameters) {
   Parameters.GetSource().print(F(" "));
   Parameters.GetSource().print(LightCfg.Data.birthday_day);
   Parameters.GetSource().println(F(";"));
+}
+
+/*
+  This function defines the GetEpoch Command
+
+  Parameters: The cmdArguments
+
+  Syntax off the serial command:
+  #GetEpoch;
+
+  Prints the current RTC date and time as Unix epoch (seconds since
+  1970-01-01 00:00:00).
+*/
+void Cmd_GetEpoch(CommandParameter &Parameters) {
+  uint32_t epoch = date2epoch(Controllino_GetYear(),
+                              Controllino_GetMonth(),
+                              Controllino_GetDay(),
+                              Controllino_GetHour(),
+                              Controllino_GetMinute(),
+                              Controllino_GetSecond());
+  Parameters.GetSource().print(F("#GetEpoch "));
+  Parameters.GetSource().println(epoch);
 }
 
 
@@ -1644,10 +1696,14 @@ uint32_t calculateLightDuration() {
   uint16_t controllino_year = Controllino_GetYear();
   uint8_t  controllino_month = Controllino_GetMonth();
   uint8_t  controllino_day = Controllino_GetDay();
-  uint16_t dateDays = date2days(controllino_year, controllino_month, controllino_day);
-  uint16_t age = dateDays - LightCfg.Data.Birthday;
-  uint16_t week = (age / 7) + 1; //first week has two datapoints in the array
-  uint32_t weekDay = (uint32_t) age % 7;
+  /* Days since 1970-01-01 (Unix epoch) for today ... */
+  uint32_t todayDays = daysFromEpoch(controllino_year, controllino_month, controllino_day);
+  /* ... and for the birthday. Birthday is stored as days since 2000-01-01
+     (uint16_t, EEPROM format kept stable); 1970-01-01 .. 2000-01-01 is 10957 days. */
+  uint32_t birthdayDays = (uint32_t)LightCfg.Data.Birthday + 10957UL;
+  uint32_t age = todayDays - birthdayDays;
+  uint32_t week = (age / 7) + 1; //first week has two datapoints in the array
+  uint32_t weekDay = age % 7;
   uint32_t k;
   uint32_t lightDuration = 0;
   if (week > 24) { //reached regular light duration until end of egg production.
@@ -1668,7 +1724,7 @@ uint32_t calculateLightDuration() {
     Serial.print("year=");Serial.println(controllino_year);
     Serial.print("month=");Serial.println(controllino_month);
     Serial.print("day=");Serial.println(controllino_day);
-    Serial.print("dateDays = "); Serial.println(dateDays);
+    Serial.print("todayDays = "); Serial.println(todayDays);
     Serial.print("birthday = "); Serial.println(LightCfg.Data.Birthday);
     Serial.print("age = "); Serial.println(age);
     Serial.print("week = "); Serial.println(week);
@@ -1730,6 +1786,7 @@ void setup() {
   SerialCommandHandler.AddCommand(F("GetAgeBasedLightDuration"), Cmd_GetAgeBasedLightDuration);
   SerialCommandHandler.AddCommand(F("SetBirthday"), Cmd_SetBirthday);
   SerialCommandHandler.AddCommand(F("GetBirthday"), Cmd_GetBirthday);
+  SerialCommandHandler.AddCommand(F("GetEpoch"), Cmd_GetEpoch);
   SerialCommandHandler.AddCommand(F("LightManual"), Cmd_LightManual);
   SerialCommandHandler.AddCommand(F("LightAutomatic"), Cmd_LightAutomatic);
   SerialCommandHandler.AddCommand(F("NestManual"), Cmd_NestManual);
